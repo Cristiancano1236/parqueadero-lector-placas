@@ -26,6 +26,9 @@ Aplicación Node.js + Express para gestionar parqueaderos con múltiples empresa
    # Puerto del servidor
    PORT=3000
 
+   # HTTPS local (opcional)
+   HTTPS=true
+
    # JWT
    JWT_SECRET=tu_secreto_jwt
 
@@ -54,6 +57,33 @@ Aplicación Node.js + Express para gestionar parqueaderos con múltiples empresa
 El servidor sirve la UI desde `public/` y expone la API bajo `/api/*`.
 
 Página principal: `GET /` -> `public/index.html`
+
+### HTTPS local (pruebas de cámara / móvil)
+
+Para usar la cámara desde el móvil por IP de red hace falta HTTPS.
+
+1. Instalar [mkcert](https://github.com/FiloSottile/mkcert) (Windows: `winget install FiloSottile.mkcert`).
+2. Generar certificados (localhost + IP LAN):
+   ```bash
+   npm run certs
+   ```
+3. En `.env` puedes usar:
+   ```env
+   HTTPS=true
+   PORT=3000
+   ```
+   - `HTTPS=true`: fuerza HTTPS (falla si no hay certs)
+   - `HTTPS=false`: fuerza HTTP
+   - sin variable: usa HTTPS automáticamente si existen `certs/dev-cert.pem` y `certs/dev-key.pem`
+4. Arrancar con `npm start` y abrir las URLs `https://` que imprime la consola.
+
+**Móvil (misma WiFi):** una sola vez instala la CA de mkcert del PC.
+
+1. En el PC ejecuta `mkcert -CAROOT` y copia `rootCA.pem` al teléfono.
+2. Android: Ajustes → Seguridad → instalar certificado CA. iOS: instalar perfil y confiar en el certificado.
+3. Abre `https://IP:3000` (la IP que muestra el servidor).
+
+Si cambia la IP del PC (otro WiFi), vuelve a ejecutar `npm run certs` y reinicia el servidor.
 
 ### Estructura del proyecto
 ```
@@ -89,6 +119,7 @@ schema.sql             # Esquema, vistas, procedimiento y datos seed
 
 ### Variables de entorno
 - `PORT`: Puerto del servidor (default 3000)
+- `HTTPS`: `true` fuerza HTTPS, `false` fuerza HTTP; si se omite, usa HTTPS cuando existen certs locales
 - `JWT_SECRET`: Secreto para firmar/verificar JWT
 - `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`: Conexión a la BD
 
@@ -142,6 +173,7 @@ schema.sql             # Esquema, vistas, procedimiento y datos seed
 ### Scripts npm
 - `npm start`: inicia servidor en `PORT`
 - `npm run dev`: inicia con nodemon
+- `npm run certs`: genera certificados HTTPS locales con mkcert
 
 ### Notas
 - `public/uploads/` (si existía en versiones previas) está ignorado; actualmente el logo se almacena como BLOB.

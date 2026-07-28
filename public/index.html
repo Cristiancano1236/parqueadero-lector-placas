@@ -86,19 +86,8 @@
                                 <label class="form-check-label" for="recordar">Recordar sesión</label>
                             </div>
 
-                            <!-- Cloudflare Turnstile widget (invisible para el usuario) -->
-                            <div class="cf-turnstile mb-3"
-                                 data-sitekey="0x4AAAAAADfcBKLpQqcymPI5"
-                                 data-theme="light"
-                                 data-size="flexible"
-                                 data-callback="onTurnstileSuccess"
-                                 data-error-callback="onTurnstileError"
-                                 data-expired-callback="onTurnstileExpired">
-                            </div>
-
-                            <button type="submit" id="btnLogin" class="btn btn-primary w-100 mb-3 py-2" disabled>
-                                <span class="spinner-border spinner-border-sm me-2" id="verifySpinner" role="status"></span>
-                                Verificando seguridad...
+                            <button type="submit" id="btnLogin" class="btn btn-primary w-100 mb-3 py-2">
+                                Iniciar Sesión
                             </button>
 
                             <div class="text-center">
@@ -132,8 +121,6 @@
         </div>
     </div>
 
-    <!-- Cloudflare Turnstile -->
-    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <!-- Footer global -->

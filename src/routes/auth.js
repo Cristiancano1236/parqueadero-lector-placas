@@ -5,25 +5,6 @@ const jwt = require('jsonwebtoken');
 const pool = require('../config/db');
 const validateLoginData = require('../middleware/validateLogin');
 
-const verifyTurnstile = async (token, ip) => {
-    try {
-        const formData = new URLSearchParams();
-        formData.append('secret', process.env.TURNSTILE_SECRET_KEY);
-        formData.append('response', token);
-        formData.append('remoteip', ip);
-
-        const response = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
-            method: 'POST',
-            body: formData
-        });
-        const data = await response.json();
-        return data.success === true;
-    } catch (err) {
-        console.error('Error verificando Turnstile:', err);
-        return false;
-    }
-};
-
 // Middleware para registrar intentos de inicio de sesión
 const logLoginAttempt = async (id_empresa, usuario, exitoso, ip) => {
     try {
@@ -61,26 +42,9 @@ router.post('/login', validateLoginData, async (req, res) => {
     const empresa = typeof req.body.empresa === 'string' ? req.body.empresa.trim() : req.body.empresa;
     const usuario = typeof req.body.usuario === 'string' ? req.body.usuario.trim() : req.body.usuario;
     const password = req.body.password;
-    const turnstileToken = req.body.turnstileToken;
-    const ip = req.headers['cf-connecting-ip'] || req.ip || req.connection.remoteAddress;
+    const ip = req.ip || req.connection.remoteAddress;
 
     try {
-        // Verificar Turnstile antes de cualquier consulta a la BD
-        if (!turnstileToken) {
-            return res.status(400).json({
-                success: false,
-                message: 'Verificación de seguridad requerida'
-            });
-        }
-
-        const turnstileOk = await verifyTurnstile(turnstileToken, ip);
-        if (!turnstileOk) {
-            return res.status(403).json({
-                success: false,
-                message: 'Verificación de seguridad fallida. Recarga la página e intenta de nuevo.'
-            });
-        }
-
         // Buscar la empresa
         const [empresas] = await pool.query(
             'SELECT id_empresa FROM empresas WHERE nit = ? AND activa = true',

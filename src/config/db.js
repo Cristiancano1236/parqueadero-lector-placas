@@ -1,12 +1,16 @@
 const mysql = require('mysql2/promise');
-require('dotenv').config();
+const path = require('path');
 
-// Configuración de la conexión a la base de datos
+require('dotenv').config({
+    path: path.join(__dirname, '../../.env'),
+    override: true
+});
+
 const pool = mysql.createPool({
-    host: process.env.DB_HOST || 'localhost',
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'parqueadero',
+    host: (process.env.DB_HOST || 'localhost').trim(),
+    user: (process.env.DB_USER || 'root').trim(),
+    password: process.env.DB_PASSWORD == null ? '' : String(process.env.DB_PASSWORD),
+    database: (process.env.DB_NAME || 'parqueadero').trim(),
     // Seguridad: evitar ejecución de múltiples sentencias por query
     multipleStatements: false,
     waitForConnections: true,

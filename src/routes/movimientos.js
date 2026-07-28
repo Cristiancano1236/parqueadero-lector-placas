@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../config/db');
 const verifyToken = require('../middleware/auth');
+const { normalizarPlaca, clasificarTipoPlaca } = require('../utils/placa');
 
 // Obtener tarifa activa por tipo de vehículo para la empresa
 // Relacionado con: src/routes/tarifas.js para estructura de tarifas
@@ -87,24 +88,47 @@ function calcularTotal({ minutos, tarifa }) {
 }
 
 // Registrar ingreso
-// Relacionado con: public/admin/ingreso-salida.html para formulario de ingreso
+// Relacionado con: public/admin/ingreso-salida.html y public/admin/lector-placas.html
 router.post('/ingreso', verifyToken, async (req, res) => {
     try {
-        const { placa, id_tipo } = req.body;
+        let { placa, id_tipo, auto_tipo } = req.body;
         const idEmpresa = req.user.id_empresa;
 
-        if (!placa || !id_tipo) {
-            return res.status(400).json({ success: false, message: 'Placa y tipo son obligatorios' });
+        const placaNorm = normalizarPlaca(placa);
+        if (!placaNorm) {
+            return res.status(400).json({ success: false, message: 'La placa es obligatoria' });
         }
 
-        // Verificar que el tipo existe y está activo
-        const [tipo] = await pool.query(
-            'SELECT id_tipo, nombre, codigo FROM tipos_vehiculos WHERE id_tipo = ? AND id_empresa = ? AND activo = TRUE',
-            [id_tipo, idEmpresa]
-        );
+        const codigoClasificado = clasificarTipoPlaca(placaNorm);
+        if (!codigoClasificado) {
+            return res.status(400).json({
+                success: false,
+                message: 'Placa inválida. Use formato carro (ABC123) o moto (ABC12D)'
+            });
+        }
 
-        if (tipo.length === 0) {
-            return res.status(400).json({ success: false, message: 'Tipo de vehículo no válido o inactivo' });
+        let tipoRows;
+        if (!id_tipo || auto_tipo) {
+            [tipoRows] = await pool.query(
+                `SELECT id_tipo, nombre, codigo FROM tipos_vehiculos
+                 WHERE id_empresa = ? AND codigo = ? AND activo = TRUE`,
+                [idEmpresa, codigoClasificado]
+            );
+            if (tipoRows.length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: `No hay tipo activo "${codigoClasificado}" para esta empresa`
+                });
+            }
+            id_tipo = tipoRows[0].id_tipo;
+        } else {
+            [tipoRows] = await pool.query(
+                'SELECT id_tipo, nombre, codigo FROM tipos_vehiculos WHERE id_tipo = ? AND id_empresa = ? AND activo = TRUE',
+                [id_tipo, idEmpresa]
+            );
+            if (tipoRows.length === 0) {
+                return res.status(400).json({ success: false, message: 'Tipo de vehículo no válido o inactivo' });
+            }
         }
 
         const tarifa = await obtenerTarifaActiva(idEmpresa, id_tipo);
@@ -112,23 +136,27 @@ router.post('/ingreso', verifyToken, async (req, res) => {
             return res.status(400).json({ success: false, message: 'No hay tarifa activa para este tipo' });
         }
 
-        // Crear vehículo si no existe
         const [vehiculos] = await pool.query(
-            'SELECT id_vehiculo FROM vehiculos WHERE placa = ? AND id_empresa = ?',
-            [placa, idEmpresa]
+            'SELECT id_vehiculo, id_tipo FROM vehiculos WHERE placa = ? AND id_empresa = ?',
+            [placaNorm, idEmpresa]
         );
         let idVehiculo;
         if (vehiculos.length === 0) {
             const [ins] = await pool.query(
                 'INSERT INTO vehiculos (id_empresa, placa, id_tipo, color) VALUES (?, ?, ?, ?)',
-                [idEmpresa, placa.toUpperCase(), id_tipo, 'N/A']
+                [idEmpresa, placaNorm, id_tipo, 'N/A']
             );
             idVehiculo = ins.insertId;
         } else {
             idVehiculo = vehiculos[0].id_vehiculo;
+            if (Number(vehiculos[0].id_tipo) !== Number(id_tipo)) {
+                await pool.query(
+                    'UPDATE vehiculos SET id_tipo = ? WHERE id_vehiculo = ? AND id_empresa = ?',
+                    [id_tipo, idVehiculo, idEmpresa]
+                );
+            }
         }
 
-        // Verificar si ya está activo
         const [activos] = await pool.query(
             'SELECT id_movimiento FROM movimientos WHERE id_vehiculo = ? AND fecha_salida IS NULL',
             [idVehiculo]
@@ -145,9 +173,9 @@ router.post('/ingreso', verifyToken, async (req, res) => {
 
         const comprobante = {
             movimientoId: mov.insertId,
-            placa: placa.toUpperCase(),
-            tipo: tipo[0].nombre,
-            tipo_codigo: tipo[0].codigo,
+            placa: placaNorm,
+            tipo: tipoRows[0].nombre,
+            tipo_codigo: tipoRows[0].codigo,
             fechaEntrada: new Date().toISOString(),
             tarifa: {
                 valor_minuto: tarifa.valor_minuto,

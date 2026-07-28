@@ -19,3 +19,4 @@ public/uploads/
 *.log
 .env
 *.pem
+certs/

@@ -1,7 +1,11 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-require('dotenv').config();
+const os = require('os');
+const fs = require('fs');
+const http = require('http');
+const https = require('https');
+require('dotenv').config({ path: path.join(__dirname, '../.env'), override: true });
 
 const app = express();
 
@@ -30,6 +34,7 @@ app.use('/api/usuarios', require('./routes/usuarios'));
 app.use('/api/reportes', require('./routes/reportes'));
 app.use('/api/turnos', require('./routes/turnos'));
 app.use('/api/mensualidades', require('./routes/mensualidades'));
+app.use('/api/lector', require('./routes/lector'));
 
 // Rutas de vistas
 app.get('/', (req, res) => {
@@ -104,6 +109,78 @@ app.use((req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`Servidor corriendo en el puerto ${PORT}`);
-});
+const projectRoot = path.join(__dirname, '..');
+const certPath = path.join(projectRoot, 'certs', 'dev-cert.pem');
+const keyPath = path.join(projectRoot, 'certs', 'dev-key.pem');
+const httpsFlag = String(process.env.HTTPS || '').trim().toLowerCase();
+const forceHttps = httpsFlag === 'true' || httpsFlag === '1';
+const forceHttp = httpsFlag === 'false' || httpsFlag === '0';
+const hasCerts = fs.existsSync(certPath) && fs.existsSync(keyPath);
+
+function obtenerIpsLocales() {
+    const interfaces = os.networkInterfaces();
+    const ips = [];
+    for (const infos of Object.values(interfaces)) {
+        if (!infos) continue;
+        for (const info of infos) {
+            if ((info.family === 'IPv4' || info.family === 4) && !info.internal) {
+                ips.push(info.address);
+            }
+        }
+    }
+    return ips;
+}
+
+function imprimirUrls(protocol) {
+    console.log(`Servidor corriendo en el puerto ${PORT} (${protocol.toUpperCase()})`);
+    console.log(`Local:   ${protocol}://localhost:${PORT}`);
+    const ips = obtenerIpsLocales();
+    if (ips.length === 0) {
+        console.log('Red:     (no se detectó IP de red local)');
+    } else {
+        ips.forEach((ip) => {
+            console.log(`Móvil:   ${protocol}://${ip}:${PORT}`);
+        });
+    }
+}
+
+if (forceHttps && !hasCerts) {
+    console.error('HTTPS=true pero faltan certificados en certs/.');
+    console.error('Ejecuta: npm run certs');
+    process.exit(1);
+}
+
+// HTTPS automático si hay certs; HTTPS=true fuerza; HTTPS=false fuerza HTTP
+const useHttps = !forceHttp && (forceHttps || hasCerts);
+
+if (useHttps) {
+    const credentials = {
+        key: fs.readFileSync(keyPath),
+        cert: fs.readFileSync(certPath)
+    };
+    https.createServer(credentials, app).listen(PORT, '0.0.0.0', () => {
+        imprimirUrls('https');
+        // Precarga PaddleOCR en segundo plano (primera lectura más rápida)
+        try {
+            require('./services/plateOcr').warmUp()
+                .then(() => console.log('OCR: modelos PaddleOCR listos'))
+                .catch((err) => console.warn('OCR: no se pudo precargar:', err.message));
+        } catch (err) {
+            console.warn('OCR: no se pudo precargar:', err.message);
+        }
+    });
+} else {
+    if (!hasCerts) {
+        console.log('Aviso: sin certificados en certs/. Usando HTTP. Para HTTPS: npm run certs');
+    }
+    http.createServer(app).listen(PORT, '0.0.0.0', () => {
+        imprimirUrls('http');
+        try {
+            require('./services/plateOcr').warmUp()
+                .then(() => console.log('OCR: modelos PaddleOCR listos'))
+                .catch((err) => console.warn('OCR: no se pudo precargar:', err.message));
+        } catch (err) {
+            console.warn('OCR: no se pudo precargar:', err.message);
+        }
+    });
+}

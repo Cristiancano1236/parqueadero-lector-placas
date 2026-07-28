@@ -327,17 +327,15 @@ VALUES ('Parqueadero Central', '900123456-7', 'Calle Principal #123', '300123456
 INSERT INTO configuracion_empresa (id_empresa, capacidad_total_carros, capacidad_total_motos, capacidad_total_bicicletas)
 VALUES (1, 100, 50, 30);
 
--- Insertar tipos de vehículos por defecto para la empresa 1
+-- Insertar tipos de vehículos por defecto para la empresa 1 (solo carro y moto)
 INSERT INTO tipos_vehiculos (id_empresa, nombre, codigo, activo) VALUES
 (1, 'Carro', 'carro', TRUE),
-(1, 'Moto', 'moto', TRUE),
-(1, 'Bicicleta', 'bici', TRUE);
+(1, 'Moto', 'moto', TRUE);
 
 -- Insertar capacidades por tipo de vehículo
 INSERT INTO capacidades_tipo (id_empresa, id_tipo, capacidad_total) VALUES
 (1, 1, 100),  -- Carros
-(1, 2, 50),   -- Motos
-(1, 3, 30);   -- Bicicletas
+(1, 2, 50);   -- Motos
 
 -- Insertar usuario administrador por defecto
 INSERT INTO usuarios (id_empresa, nombre, usuario_login, contraseña, rol)
@@ -347,5 +345,4 @@ VALUES (1, 'Administrador', 'admin', '$2a$10$8GB5OFGTizEbMiuu1TSDWeAls/TRzA0l8Ej
 INSERT INTO tarifas (id_empresa, id_tipo, valor_hora, valor_minuto, valor_dia_completo, activa)
 VALUES
 (1, 1, 6000.00, 120.00, 30000.00, TRUE),  -- Carro
-(1, 2, 3000.00, 60.00, 15000.00, TRUE),   -- Moto
-(1, 3, 1500.00, 30.00, 8000.00, TRUE);    -- Bicicleta
+(1, 2, 3000.00, 60.00, 15000.00, TRUE);   -- Moto

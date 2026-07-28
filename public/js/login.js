@@ -1,39 +1,3 @@
-// Callbacks globales de Cloudflare Turnstile (deben estar fuera del DOMContentLoaded)
-function onTurnstileSuccess() {
-    const btn = document.getElementById('btnLogin');
-    if (!btn) return;
-    btn.disabled = false;
-    btn.innerHTML = 'Iniciar Sesión';
-}
-
-function onTurnstileError() {
-    const btn = document.getElementById('btnLogin');
-    if (!btn) return;
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Verificando seguridad...';
-}
-
-function onTurnstileExpired() {
-    const btn = document.getElementById('btnLogin');
-    if (!btn) return;
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Verificando seguridad...';
-    if (window.turnstile) window.turnstile.reset();
-}
-
-// Polling de respaldo: si Turnstile completó antes de que el callback estuviera listo
-(function pollTurnstileReady() {
-    const interval = setInterval(function () {
-        const tokenInput = document.querySelector('[name="cf-turnstile-response"]');
-        if (tokenInput && tokenInput.value) {
-            onTurnstileSuccess();
-            clearInterval(interval);
-        }
-    }, 200);
-    // Dejar de revisar después de 30 segundos
-    setTimeout(function () { clearInterval(interval); }, 30000);
-})();
-
 // Esperar a que el documento esté completamente cargado
 document.addEventListener('DOMContentLoaded', function() {
     // Verificar si ya hay un token válido
@@ -78,13 +42,6 @@ document.addEventListener('DOMContentLoaded', function() {
             const recordar = document.getElementById('recordar').checked;
 
             try {
-                // Obtener el token de Turnstile antes de enviar
-                const turnstileToken = document.querySelector('[name="cf-turnstile-response"]')?.value;
-                if (!turnstileToken) {
-                    mostrarError('Verificación de seguridad pendiente. Por favor espera un momento e intenta de nuevo.');
-                    return;
-                }
-
                 mostrarCargando();
                 
                 // Enviar datos al servidor
@@ -93,7 +50,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ empresa, usuario, password, turnstileToken })
+                    body: JSON.stringify({ empresa, usuario, password })
                 });
 
                 const data = await response.json();
@@ -138,10 +95,6 @@ document.addEventListener('DOMContentLoaded', function() {
             } catch (error) {
                 mostrarError(error.message);
                 restaurarBoton();
-                // Resetear el widget de Turnstile para permitir un nuevo intento
-                if (window.turnstile) {
-                    window.turnstile.reset();
-                }
             }
         }
 
@@ -162,7 +115,7 @@ document.addEventListener('DOMContentLoaded', function() {
         boton.disabled = true;
     }
 
-    // Función para restaurar el botón (Turnstile sigue válido tras un error de credenciales)
+    // Función para restaurar el botón
     function restaurarBoton() {
         const boton = document.getElementById('btnLogin');
         boton.innerHTML = 'Iniciar Sesión';
