@@ -5,16 +5,11 @@ const os = require('os');
 const fs = require('fs');
 const http = require('http');
 const https = require('https');
-require('dotenv').config({ path: path.join(__dirname, '../.env'), override: true });
+const { projectRoot, publicDir, certsDir, envPath } = require('./paths');
+
+require('dotenv').config({ path: envPath, override: true });
 
 const app = express();
-
-// Determina ruta base según entorno (desarrollo vs ejecutable pkg)
-// Cuando se empaqueta con pkg, process.pkg existe y el ejecutable vive en process.execPath
-// Esto permite servir la carpeta "public" que se copiará junto al .exe en dist/public
-const isPackaged = !!process.pkg;
-const basePath = isPackaged ? path.dirname(process.execPath) : path.join(__dirname, '..');
-const publicDir = path.join(basePath, 'public');
 
 // Middleware
 app.use(cors());
@@ -81,6 +76,30 @@ app.get('/operador/ingreso-salida.html', (req, res) => {
 app.get('/operador/ingreso-salida', (req, res) => {
     res.sendFile(path.join(publicDir, 'admin/ingreso-salida.html'));
 });
+app.get('/admin/ingreso-salida', (req, res) => {
+    res.sendFile(path.join(publicDir, 'admin/ingreso-salida.html'));
+});
+app.get('/admin/ingreso-salida.html', (req, res) => {
+    res.sendFile(path.join(publicDir, 'admin/ingreso-salida.html'));
+});
+app.get('/admin/lector-placas', (req, res) => {
+    res.sendFile(path.join(publicDir, 'admin/lector-placas.html'));
+});
+app.get('/admin/lector-placas.html', (req, res) => {
+    res.sendFile(path.join(publicDir, 'admin/lector-placas.html'));
+});
+app.get('/operador/lector-placas', (req, res) => {
+    res.sendFile(path.join(publicDir, 'admin/lector-placas.html'));
+});
+app.get('/operador/lector-placas.html', (req, res) => {
+    res.sendFile(path.join(publicDir, 'admin/lector-placas.html'));
+});
+app.get('/admin/tarifas', (req, res) => {
+    res.sendFile(path.join(publicDir, 'admin/tarifas.html'));
+});
+app.get('/admin/tarifas.html', (req, res) => {
+    res.sendFile(path.join(publicDir, 'admin/tarifas.html'));
+});
 
 app.get('/admin/reportes', (req, res) => {
     res.sendFile(path.join(publicDir, 'admin/reportes.html'));
@@ -109,9 +128,8 @@ app.use((req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-const projectRoot = path.join(__dirname, '..');
-const certPath = path.join(projectRoot, 'certs', 'dev-cert.pem');
-const keyPath = path.join(projectRoot, 'certs', 'dev-key.pem');
+const certPath = path.join(certsDir, 'dev-cert.pem');
+const keyPath = path.join(certsDir, 'dev-key.pem');
 const httpsFlag = String(process.env.HTTPS || '').trim().toLowerCase();
 const forceHttps = httpsFlag === 'true' || httpsFlag === '1';
 const forceHttp = httpsFlag === 'false' || httpsFlag === '0';
@@ -142,6 +160,7 @@ function imprimirUrls(protocol) {
             console.log(`Móvil:   ${protocol}://${ip}:${PORT}`);
         });
     }
+    console.log(`Raíz:    ${projectRoot}`);
 }
 
 if (forceHttps && !hasCerts) {

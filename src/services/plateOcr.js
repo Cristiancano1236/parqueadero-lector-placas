@@ -7,8 +7,9 @@ const path = require('path');
 const sharp = require('sharp');
 const ort = require('onnxruntime-node');
 const { PaddleOcrService } = require('paddleocr');
+const { paddleOcrDir } = require('../paths');
 
-const MODEL_DIR = path.join(__dirname, '../../models/paddleocr/ppocr_v5_mobile');
+const MODEL_DIR = paddleOcrDir;
 const DET_PATH = path.join(MODEL_DIR, 'PP-OCRv5_mobile_det_infer.onnx');
 const REC_PATH = path.join(MODEL_DIR, 'PP-OCRv5_mobile_rec_infer.onnx');
 const DICT_PATH = path.join(MODEL_DIR, 'ppocrv5_dict.txt');
