@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ParkSystem - Pruebas del lector (QA)</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { font-family: system-ui, sans-serif; background: #0b1220; color: #e5e7eb; }
+        .card-qa { background: #111827; border: 1px solid #1f2937; }
+        .table-qa { color: #e5e7eb; }
+        .table-qa th, .table-qa td { border-color: #1f2937 !important; vertical-align: middle; }
+        .thumb { max-height: 60px; border-radius: 4px; }
+        .ok-badge { font-weight: 600; }
+        code { color: #93c5fd; }
+    </style>
+    <script>
+        if (!localStorage.getItem('token')) { window.location.href = '/'; }
+    </script>
+</head>
+<body>
+    <div class="container py-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <h4 class="mb-1"><i class="fas fa-vial me-2 text-warning"></i>Pruebas del lector (QA / desarrollo)</h4>
+                <p class="text-secondary mb-0">Placas simuladas "en movimiento" contra <code>/api/lector/reconocer</code>. Umbral objetivo: <strong>&lt; 2000&nbsp;ms</strong> por lectura.</p>
+            </div>
+            <a href="../admin/lector-placas.html" class="btn btn-outline-light btn-sm"><i class="fas fa-arrow-left me-1"></i>Volver al lector</a>
+        </div>
+
+        <div class="card card-qa mb-3">
+            <div class="card-body d-flex flex-wrap gap-2 align-items-center">
+                <button type="button" class="btn btn-primary" id="btnRun">
+                    <i class="fas fa-play me-1"></i>Ejecutar pruebas
+                </button>
+                <span id="runStatus" class="text-secondary small">Listo.</span>
+                <div id="summaryBox" class="ms-auto small fw-semibold"></div>
+            </div>
+        </div>
+
+        <div class="card card-qa">
+            <div class="card-body p-0">
+                <table class="table table-qa table-sm mb-0">
+                    <thead>
+                        <tr>
+                            <th>Placa</th>
+                            <th>Variante</th>
+                            <th>Vista previa</th>
+                            <th>Esperado</th>
+                            <th>Obtenido</th>
+                            <th>Confianza</th>
+                            <th>ms (cliente, total)</th>
+                            <th>ms (Gemini, servidor)</th>
+                            <th>Resultado</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultsBody">
+                        <tr><td colspan="9" class="text-secondary text-center py-4">Sin resultados todavía. Pulsa "Ejecutar pruebas".</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <p class="text-secondary small mt-3">
+            El caso "Doble placa parcial" no tiene un valor esperado exacto (ambas placas quedan cortadas en la imagen);
+            se muestra solo para revisar manualmente que la IA no invente una placa completa a partir de dígitos cortados.
+        </p>
+        <p class="text-secondary small">
+            Si ves "Cuota o límite de Gemini agotado" incluso con varios segundos entre pruebas, es un límite de
+            solicitudes por minuto que Google aplica a nivel de tu proyecto en el nivel gratuito, no un error del código.
+            La única forma de subirlo de forma confiable es habilitar facturación en tu proyecto de Google Cloud
+            (Flash-Lite sigue siendo muy barato: ~$0.10 por millón de tokens de entrada).
+        </p>
+    </div>
+
+    <script src="test-runner.js"></script>
+</body>
+</html>

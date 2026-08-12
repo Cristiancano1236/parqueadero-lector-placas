@@ -14,10 +14,19 @@ document.addEventListener('DOMContentLoaded', () => {
     // Cargar datos
     cargarEmpresa();
     cargarConfig();
+    cargarIaConfig();
 
     // Guardar
     document.getElementById('btnSaveEmpresa').addEventListener('click', guardarEmpresa);
     document.getElementById('btnSaveConfig').addEventListener('click', guardarConfig);
+    document.getElementById('btnSaveIa')?.addEventListener('click', guardarIaConfig);
+    document.getElementById('btnTestIa')?.addEventListener('click', probarIaConfig);
+    document.getElementById('btnToggleIaKey')?.addEventListener('click', toggleIaKeyVisibility);
+    document.getElementById('ia_modelo')?.addEventListener('change', syncModeloCustom);
+    document.getElementById('formIa')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        guardarIaConfig();
+    });
 
     // Logo: vista previa y subida
     const fileInput = document.getElementById('e_logo_file');
@@ -151,6 +160,166 @@ function setAlert(id, type, msg){
 
 function spinner(text){
     return `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> ${text}`;
+}
+
+const MODELOS_IA = [
+    'gemini-3.1-flash-lite',
+    'gemini-3.6-flash',
+    'gemini-3.1-pro-preview',
+    'gemini-2.5-flash-lite',
+    'gemini-2.5-flash',
+    'gemini-2.5-pro'
+];
+
+function syncModeloCustom() {
+    const sel = document.getElementById('ia_modelo');
+    const wrap = document.getElementById('ia_modelo_custom_wrap');
+    if (!sel || !wrap) return;
+    wrap.classList.toggle('d-none', sel.value !== 'custom');
+}
+
+function modeloSeleccionado() {
+    const sel = document.getElementById('ia_modelo');
+    if (!sel) return 'gemini-3.1-flash-lite';
+    if (sel.value === 'custom') {
+        return (document.getElementById('ia_modelo_custom').value || '').trim();
+    }
+    return sel.value;
+}
+
+function setModeloSelect(modelo) {
+    const sel = document.getElementById('ia_modelo');
+    const custom = document.getElementById('ia_modelo_custom');
+    const value = modelo || 'gemini-3.1-flash-lite';
+    if (MODELOS_IA.includes(value)) {
+        sel.value = value;
+        custom.value = '';
+    } else {
+        sel.value = 'custom';
+        custom.value = value;
+    }
+    syncModeloCustom();
+}
+
+function setIaBadge(configurado) {
+    const badge = document.getElementById('ia_badge');
+    if (!badge) return;
+    if (configurado) {
+        badge.className = 'badge bg-success ms-2';
+        badge.textContent = 'Configurado';
+    } else {
+        badge.className = 'badge bg-secondary ms-2';
+        badge.textContent = 'No configurado';
+    }
+}
+
+function toggleIaKeyVisibility() {
+    const input = document.getElementById('ia_api_key');
+    const icon = document.getElementById('ia_key_icon');
+    if (!input) return;
+    const show = input.type === 'password';
+    input.type = show ? 'text' : 'password';
+    if (icon) {
+        icon.classList.toggle('fa-eye', !show);
+        icon.classList.toggle('fa-eye-slash', show);
+    }
+}
+
+async function cargarIaConfig() {
+    try {
+        const r = await fetch('/api/ia/config', {
+            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.message || 'Error cargando configuración de IA');
+        const d = j.data || {};
+        setIaBadge(!!d.configurado);
+        setModeloSelect(d.modelo);
+        document.getElementById('ia_api_key').value = '';
+        const preview = document.getElementById('ia_key_preview');
+        if (d.configurado && d.api_key_preview) {
+            preview.textContent = `Clave guardada: ${d.api_key_preview}. Déjalo vacío para conservarla o pega una nueva para reemplazarla.`;
+        } else {
+            preview.textContent = 'Aún no hay una API Key guardada. El lector de placas no funcionará hasta configurarla.';
+        }
+    } catch (err) {
+        setAlert('alertIa', 'danger', err.message);
+    }
+}
+
+async function guardarIaConfig() {
+    const payload = { modelo: modeloSeleccionado() };
+    if (!payload.modelo) {
+        setAlert('alertIa', 'warning', 'Indica un modelo de Gemini.');
+        return;
+    }
+    const key = (document.getElementById('ia_api_key').value || '').trim();
+    if (key) payload.api_key = key;
+
+    const btn = document.getElementById('btnSaveIa');
+    const prev = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = spinner('Guardando...');
+    try {
+        const r = await fetch('/api/ia/config', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify(payload)
+        });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.message || 'Error al guardar');
+        document.getElementById('ia_api_key').value = '';
+        await cargarIaConfig();
+        setAlert('alertIa', 'success', j.message || 'Configuración de IA guardada.');
+    } catch (err) {
+        setAlert('alertIa', 'danger', err.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = prev;
+    }
+}
+
+async function probarIaConfig() {
+    const payload = { modelo: modeloSeleccionado() };
+    const key = (document.getElementById('ia_api_key').value || '').trim();
+    if (key) payload.api_key = key;
+
+    const btn = document.getElementById('btnTestIa');
+    const prev = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = spinner('Probando...');
+    try {
+        const r = await fetch('/api/ia/config/probar', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify(payload)
+        });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.message || 'La prueba falló');
+        const data = j.data || {};
+        if (data.modelo) setModeloSelect(data.modelo);
+        if (data.uso_fallback && data.modelo) {
+            setAlert(
+                'alertIa',
+                'success',
+                `Tu clave no admite el modelo recomendado. Ya dejamos seleccionado el que sí funciona (${data.modelo}). Pulsa Guardar.`
+            );
+        } else {
+            const modeloOk = data.modelo ? ` Modelo: ${data.modelo}.` : '';
+            setAlert('alertIa', 'success', (j.message || 'Conexión con Gemini correcta.') + modeloOk);
+        }
+    } catch (err) {
+        setAlert('alertIa', 'danger', err.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = prev;
+    }
 }
 
 // Subir logo y colocar URL pública en el campo de texto (no guarda aún en BD)

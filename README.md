@@ -1,6 +1,6 @@
 # ParkSystem — Parqueadero con lector de placas
 
-Aplicación **Node.js + Express + MariaDB/MySQL** para gestionar parqueaderos multi-empresa: ingresos/salidas, tarifas, pagos, **mensualidades**, reportes, turnos de caja y **lector automático de placas** (PaddleOCR en el servidor).
+Aplicación **Node.js + Express + MariaDB/MySQL** para gestionar parqueaderos multi-empresa: ingresos/salidas, tarifas, pagos, **mensualidades**, reportes, turnos de caja y **lector automático de placas** (Gemini AI).
 
 La interfaz está en `public/` y la sirve el mismo servidor.
 
@@ -17,9 +17,9 @@ La interfaz está en `public/` y la sirve el mismo servidor.
 - Logo de empresa como BLOB
 - **Lector de placas (kiosco)**
   - Cámara del dispositivo (móvil o PC)
-  - OCR con **PaddleOCR (ONNX)** en el servidor — sin API de pago, sin Python, sin GPU
+  - Reconocimiento con **Gemini AI** (cada empresa configura su propia API Key)
   - Clasificación automática carro (`ABC123`) / moto (`ABC12D`)
-  - Ingreso automático con consenso multi-frame y cooldown
+  - Ingreso automático con consenso y cooldown
 - **HTTPS local** para pruebas de cámara desde el celular en la misma WiFi
 
 ---
@@ -28,6 +28,8 @@ La interfaz está en `public/` y la sirve el mismo servidor.
 
 - **Node.js 18+** y npm
 - **MariaDB / MySQL 10.4+**
+- Conexión a internet (el lector llama a la API de Gemini)
+- Una **API Key de Gemini** ([Google AI Studio](https://aistudio.google.com/apikey); el sistema elige el modelo)
 - (Opcional) [mkcert](https://github.com/FiloSottile/mkcert) para HTTPS local
 
 ---
@@ -44,6 +46,7 @@ Crea `.env` en la raíz (puedes copiar `.env.example`):
 PORT=3000
 HTTPS=true
 JWT_SECRET=cambiar_este_secreto_local
+APP_ENCRYPTION_KEY=cambiar_esta_clave_de_cifrado
 DB_HOST=localhost
 DB_USER=root
 DB_PASSWORD=tu_password
@@ -75,12 +78,13 @@ Al arrancar verás algo como:
 Servidor corriendo en el puerto 3000 (HTTPS)
 Local:   https://localhost:3000
 Móvil:   https://192.168.x.x:3000
-OCR: modelos PaddleOCR listos
+Migraciones de esquema: OK
 ```
 
 - Login: `GET /` → `public/index.html`
 - Mensualidades: menú **Mensualidades** (tras iniciar sesión)
 - Lector: menú **Lector de placas** (tras iniciar sesión)
+- API Key de Gemini: **Configuración → Inteligencia Artificial** (solo admin)
 
 ---
 
@@ -121,36 +125,42 @@ Si cambia la IP del PC (otro WiFi), vuelve a ejecutar `npm run certs` y reinicia
 
 ---
 
-## Lector de placas (PaddleOCR)
+## Lector de placas (Gemini AI)
 
-Flujo:
+Cada quien que clone o descargue el proyecto usa **su propia API Key**. No hay una clave compartida en el código.
+
+### Cómo configurar Gemini (el usuario no elige el modelo a mano)
+
+El sistema usa **`gemini-3.1-flash-lite`** (rápido y barato para leer placas). El operador solo pega su API Key.
+
+1. Entra a [Google AI Studio](https://aistudio.google.com/apikey) e inicia sesión con Google.
+2. Clic en **Create API key** y copia la clave (`AIza…`).
+3. En ParkSystem: **admin** → **Configuración** → **Inteligencia Artificial**.
+4. Pega la clave, deja el modelo en **Rápido (recomendado)** y pulsa **Probar conexión**.
+5. Si esa clave no admite el modelo recomendado (cuentas nuevas o de solo pago), la prueba prueba otros y deja seleccionado el que sí funciona. Luego pulsa **Guardar**.
+
+La clave se guarda **cifrada** en la base de datos (por empresa) y nunca se vuelve a mostrar completa.
+
+El plan gratuito de Google se agota fácil en un kiosco. Para producción, activa facturación en [AI Studio → Uso y facturación](https://aistudio.google.com/usage); la misma clave sigue sirviendo. [Límites](https://ai.google.dev/gemini-api/docs/rate-limits).
+
+### Flujo de lectura
 
 1. El celular captura un frame (ImageCapture o `<video>`)
 2. Lo comprime a JPEG (~960 px) y lo envía a `POST /api/lector/reconocer`
-3. El servidor corre **PP-OCRv5_mobile** (detección + reconocimiento)
-4. `src/utils/placa.js` extrae una placa colombiana válida del texto
-5. El cliente acumula lecturas (consenso multi-frame) e ingresa el vehículo
-
-Modelos (ya incluidos en el repo):
-
-```text
-models/paddleocr/ppocr_v5_mobile/
-  PP-OCRv5_mobile_det_infer.onnx
-  PP-OCRv5_mobile_rec_infer.onnx
-  ppocrv5_dict.txt
-```
+3. El servidor llama a **Gemini** (`gemini-3.1-flash-lite` por defecto)
+4. `src/utils/placa.js` valida que sea una placa colombiana
+5. Si la confianza es alta (≥ 90 %) se ingresa de inmediato; si no, se confirman 2 lecturas seguidas
 
 En la UI del lector puedes:
 
 - Dejar el escaneo automático activo (modo kiosco)
 - Usar **Probar imágenes de referencia** (`public/test/placa-*.png`)
-- Activar **Mostrar depuración** (texto crudo + tiempo de OCR)
+- Activar **Mostrar depuración** (texto crudo + tiempo de la IA)
 
 ---
 
 ## Build / distribución portable
 
-`sharp` y `onnxruntime-node` usan binarios nativos: un `.exe` único con `pkg` no es fiable.  
 `npm run build` genera una **carpeta portable** lista para copiar a otro PC Windows:
 
 ```bash
@@ -167,13 +177,12 @@ dist/parqueadero/
   schema.sql
   src/
   public/
-  models/          ← modelos OCR
-  node_modules/    ← dependencias de producción (incluye nativos)
+  node_modules/
   scripts/
 ```
 
-En el PC destino hace falta **Node.js 18+** y MariaDB/MySQL.  
-Edita `.env`, ejecuta `schema.sql` si hace falta, y abre `iniciar.bat`.
+En el PC destino hace falta **Node.js 18+**, MariaDB/MySQL e internet.  
+Edita `.env`, ejecuta `schema.sql` si hace falta, abre `iniciar.bat` y configura la API Key de Gemini en el panel.
 
 ---
 
@@ -184,17 +193,19 @@ src/
   server.js                 # Express + HTTPS + rutas
   paths.js                  # Raíz del proyecto (dev / dist)
   config/db.js
+  config/migrate.js         # Columnas nuevas en instalaciones existentes
   middleware/
-  routes/                   # API REST (auth, movimientos, lector, …)
-  services/plateOcr.js      # PaddleOCR (ONNX)
+  routes/                   # API REST (auth, movimientos, lector, ia, …)
+  services/geminiPlateOcr.js
   utils/placa.js            # Normalización / clasificación de placas
+  utils/crypto.js           # AES-256-GCM para la API Key
 public/
-  admin/mensualidades.html  # Gestión de mensualidades
-  admin/lector-placas.html  # Kiosco de lectura
+  admin/configuracion.html  # Empresa + horarios + IA (API Key)
+  admin/mensualidades.html
+  admin/lector-placas.html
   js/lector-placas.js
   js/placa-utils.js
-  test/                     # Imágenes de referencia OCR
-models/paddleocr/           # Modelos ONNX (servidor)
+  test/                     # Imágenes de referencia
 scripts/
   generar-certs.ps1
   build.ps1
@@ -212,6 +223,7 @@ Todas las rutas bajo `/api/*` (salvo login) requieren `Authorization: Bearer <to
 | Área | Endpoints clave |
 |------|-----------------|
 | Auth | `POST /api/auth/login` `{ empresa, usuario, password }` |
+| IA | `GET/PUT /api/ia/config`, `POST /api/ia/config/probar` (admin) |
 | Lector | `POST /api/lector/reconocer` body = JPEG/PNG crudo → `{ placa, tipo, textoCrudo, confianza, ms }` |
 | Movimientos | `POST /api/movimientos/ingreso` `{ placa, auto_tipo: true }` |
 | Mensualidades | `GET/POST /api/mensualidades`, `GET/PUT/DELETE /api/mensualidades/:id`, `GET/POST /api/mensualidades/:id/pagos`, `GET /api/mensualidades/:id/sugerencia-pago` |
@@ -238,6 +250,7 @@ Todas las rutas bajo `/api/*` (salvo login) requieren `Authorization: Bearer <to
 | `PORT` | Puerto (default `3000`) |
 | `HTTPS` | `true` / `false` / omitir (auto si hay certs) |
 | `JWT_SECRET` | Secreto JWT |
+| `APP_ENCRYPTION_KEY` | Clave para cifrar la API Key de Gemini en la BD. Si se omite, se deriva de `JWT_SECRET` |
 | `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` | Conexión MySQL/MariaDB |
 
 ---
@@ -245,8 +258,9 @@ Todas las rutas bajo `/api/*` (salvo login) requieren `Authorization: Bearer <to
 ## Notas
 
 - `certs/` y `.env` están en `.gitignore` (no subir secretos ni PEM)
-- En producción cambia `JWT_SECRET` y usa contraseñas fuertes
-- El empaquetado antiguo con `pkg` (`.exe` único) se dejó de lado porque no incluye bien los binarios nativos del OCR; usa `npm run build` (portable)
+- En producción cambia `JWT_SECRET` y `APP_ENCRYPTION_KEY`; no los subas a un repo público
+- Cada empresa configura su propia API Key de Gemini desde el panel; no hay claves en el código
+- El lector requiere internet; si Gemini responde 429 (cuota), espera o revisa tu plan
 
 ## Licencia
 

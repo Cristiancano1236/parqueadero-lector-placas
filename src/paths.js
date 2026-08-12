@@ -20,7 +20,7 @@ function findProjectRoot() {
     // 3) Subir desde este archivo (src/paths.js -> raíz)
     const fromFile = path.join(__dirname, '..');
 
-    // 4) Si estamos en dist/src, la raíz útil es dist/ (donde están public/ y models/)
+    // 4) Si estamos en dist/src, la raíz útil es dist/ (donde está public/)
     const candidates = [
         fromFile,
         process.cwd()
@@ -29,8 +29,7 @@ function findProjectRoot() {
     for (const root of candidates) {
         const hasPublic = fs.existsSync(path.join(root, 'public'));
         const hasEnv = fs.existsSync(path.join(root, '.env')) || fs.existsSync(path.join(root, '.env.example'));
-        const hasModels = fs.existsSync(path.join(root, 'models'));
-        if (hasPublic || (hasEnv && hasModels) || hasModels) {
+        if (hasPublic || hasEnv) {
             return root;
         }
     }
@@ -43,8 +42,6 @@ const projectRoot = findProjectRoot();
 module.exports = {
     projectRoot,
     publicDir: path.join(projectRoot, 'public'),
-    modelsDir: path.join(projectRoot, 'models'),
     certsDir: path.join(projectRoot, 'certs'),
-    envPath: path.join(projectRoot, '.env'),
-    paddleOcrDir: path.join(projectRoot, 'models', 'paddleocr', 'ppocr_v5_mobile')
+    envPath: path.join(projectRoot, '.env')
 };

@@ -30,6 +30,7 @@ app.use('/api/reportes', require('./routes/reportes'));
 app.use('/api/turnos', require('./routes/turnos'));
 app.use('/api/mensualidades', require('./routes/mensualidades'));
 app.use('/api/lector', require('./routes/lector'));
+app.use('/api/ia', require('./routes/iaConfig'));
 
 // Rutas de vistas
 app.get('/', (req, res) => {
@@ -149,6 +150,12 @@ function obtenerIpsLocales() {
     return ips;
 }
 
+function runAfterListen() {
+    require('./config/migrate').runStartupMigrations()
+        .then(() => console.log('Migraciones de esquema: OK'))
+        .catch((err) => console.warn('Migraciones de esquema:', err.message));
+}
+
 function imprimirUrls(protocol) {
     console.log(`Servidor corriendo en el puerto ${PORT} (${protocol.toUpperCase()})`);
     console.log(`Local:   ${protocol}://localhost:${PORT}`);
@@ -179,14 +186,7 @@ if (useHttps) {
     };
     https.createServer(credentials, app).listen(PORT, '0.0.0.0', () => {
         imprimirUrls('https');
-        // Precarga PaddleOCR en segundo plano (primera lectura más rápida)
-        try {
-            require('./services/plateOcr').warmUp()
-                .then(() => console.log('OCR: modelos PaddleOCR listos'))
-                .catch((err) => console.warn('OCR: no se pudo precargar:', err.message));
-        } catch (err) {
-            console.warn('OCR: no se pudo precargar:', err.message);
-        }
+        runAfterListen();
     });
 } else {
     if (!hasCerts) {
@@ -194,12 +194,6 @@ if (useHttps) {
     }
     http.createServer(app).listen(PORT, '0.0.0.0', () => {
         imprimirUrls('http');
-        try {
-            require('./services/plateOcr').warmUp()
-                .then(() => console.log('OCR: modelos PaddleOCR listos'))
-                .catch((err) => console.warn('OCR: no se pudo precargar:', err.message));
-        } catch (err) {
-            console.warn('OCR: no se pudo precargar:', err.message);
-        }
+        runAfterListen();
     });
 }

@@ -29,25 +29,24 @@
     const statusPill = document.getElementById('statusPill');
     const msgBox = document.getElementById('msgBox');
     const placaManual = document.getElementById('placaManual');
-    const btnStart = document.getElementById('btnStartCam');
-    const btnStop = document.getElementById('btnStopCam');
     const btnManual = document.getElementById('btnIngresoManual');
-    const btnTestRef = document.getElementById('btnTestRef');
     const ultimoIngresoBox = document.getElementById('ultimoIngresoBox');
     const ultimoIngresoBody = document.getElementById('ultimoIngresoBody');
-    const chkDebug = document.getElementById('chkDebug');
-    const debugPanel = document.getElementById('debugPanel');
-    const debugThumbBox = document.getElementById('debugThumbBox');
-    const debugRawText = document.getElementById('debugRawText');
 
-    const OCR_INTERVAL_MS = 700;
+    const OCR_INTERVAL_MS = 900;
     const COOLDOWN_MS = 10000;
     const MAX_UPLOAD_WIDTH = 960;
+    // Debe coincidir con el `aspect-ratio` del contenedor .lector-wrap (ver lector-placas.html)
+    const PREVIEW_ASPECT = 16 / 10;
     const JPEG_QUALITY = 0.82;
-    const CONSENSUS_LEN = 5;
-    const CONSENSUS_MIN = 4;
-    const CONSENSUS_RATIO = 0.6;
-    const DEBUG_KEY = 'lector_debug_enabled';
+    const CONSENSUS_LEN = 2;
+    const CONSENSUS_MIN = 2;
+    const CONSENSUS_RATIO = 1;
+    const CONFIANZA_DIRECTA = 90;
+    const CAMERA_RETRY_MS = 4000;
+    const CAMERA_RETRY_MAX = 5;
+    const QUOTA_COOLDOWN_MS = 20000;
+    const OVERLOAD_COOLDOWN_MS = 5000;
 
     let stream = null;
     let imageCapture = null;
@@ -59,7 +58,9 @@
     let lastIngresoAt = new Map();
     let ultimoIngreso = null;
     let empresaInfo = null;
-    let debugCanvasEl = null;
+    let cameraRetryCount = 0;
+    let cameraRetryTimer = null;
+    let pausaTimer = null;
 
     function setStatus(kind, text) {
         const map = {
@@ -114,40 +115,6 @@
             tipoDetectadoEl.textContent = '—';
         }
     }
-
-    // ---------- Depuración ----------
-
-    function ensureDebugCanvas() {
-        if (!debugCanvasEl) {
-            debugCanvasEl = document.createElement('canvas');
-            debugThumbBox.innerHTML = '';
-            debugThumbBox.appendChild(debugCanvasEl);
-        }
-        return debugCanvasEl;
-    }
-
-    function updateDebugView(sourceCanvas, rawText, ms) {
-        if (!chkDebug.checked || !sourceCanvas) return;
-        const c = ensureDebugCanvas();
-        const maxW = 220;
-        const scale = Math.min(1, maxW / sourceCanvas.width);
-        c.width = Math.max(1, Math.floor(sourceCanvas.width * scale));
-        c.height = Math.max(1, Math.floor(sourceCanvas.height * scale));
-        c.getContext('2d').drawImage(sourceCanvas, 0, 0, c.width, c.height);
-        const rawTrim = rawText ? String(rawText).replace(/\s+/g, ' ').trim() : '';
-        debugRawText.textContent = [
-            'Motor: PaddleOCR (servidor)',
-            ms != null ? `${ms} ms` : '',
-            rawTrim && `OCR crudo: ${rawTrim}`
-        ].filter(Boolean).join(' · ');
-    }
-
-    chkDebug.checked = localStorage.getItem(DEBUG_KEY) !== '0';
-    debugPanel.classList.toggle('d-none', !chkDebug.checked);
-    chkDebug.addEventListener('change', () => {
-        localStorage.setItem(DEBUG_KEY, chkDebug.checked ? '1' : '0');
-        debugPanel.classList.toggle('d-none', !chkDebug.checked);
-    });
 
     // ---------- Consenso multi-frame ----------
 
@@ -207,14 +174,35 @@
 
     // ---------- Captura de frames ----------
 
-    function drawSourceToCanvas(source, w, h, maxW = MAX_UPLOAD_WIDTH) {
+    /**
+     * Calcula el rectángulo centrado que replica `object-fit: cover`: recorta
+     * el eje que sobra para igualar `targetAspect`, sin deformar la imagen.
+     * Así lo que se envía a la IA coincide con lo que el operador ve encuadrado
+     * en pantalla (el <video> usa object-fit: cover sobre un contenedor 16:10).
+     */
+    function coverCropRect(w, h, targetAspect) {
+        const srcAspect = w / h;
+        if (srcAspect > targetAspect) {
+            // Fuente más ancha que el objetivo: recorta los lados
+            const cw = Math.round(h * targetAspect);
+            const sx = Math.round((w - cw) / 2);
+            return { sx, sy: 0, sw: cw, sh: h };
+        }
+        // Fuente más alta que el objetivo (típico celular en retrato): recorta arriba/abajo
+        const ch = Math.round(w / targetAspect);
+        const sy = Math.round((h - ch) / 2);
+        return { sx: 0, sy, sw: w, sh: ch };
+    }
+
+    function drawSourceToCanvas(source, w, h, maxW = MAX_UPLOAD_WIDTH, applyCoverCrop = true) {
         if (!w || !h) return null;
-        const scale = Math.min(1, maxW / w);
-        const tw = Math.max(1, Math.floor(w * scale));
-        const th = Math.max(1, Math.floor(h * scale));
+        const crop = applyCoverCrop ? coverCropRect(w, h, PREVIEW_ASPECT) : { sx: 0, sy: 0, sw: w, sh: h };
+        const scale = Math.min(1, maxW / crop.sw);
+        const tw = Math.max(1, Math.floor(crop.sw * scale));
+        const th = Math.max(1, Math.floor(crop.sh * scale));
         workCanvas.width = tw;
         workCanvas.height = th;
-        workCtx.drawImage(source, 0, 0, tw, th);
+        workCtx.drawImage(source, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, tw, th);
         return workCanvas;
     }
 
@@ -240,7 +228,7 @@
     }
 
     /**
-     * Sube un frame al servidor para OCR con PaddleOCR.
+     * Sube un frame al servidor para reconocimiento con Gemini AI.
      * @returns {Promise<{ placa: string|null, tipo: string|null, textoCrudo: string, confianza: number, ms: number }>}
      */
     async function reconocerEnServidor(blobOrBuffer) {
@@ -254,7 +242,10 @@
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-            throw new Error(data.message || `Error OCR (${res.status})`);
+            const err = new Error(data.message || `Error OCR (${res.status})`);
+            err.code = data.code;
+            err.status = res.status;
+            throw err;
         }
         return data.data || {};
     }
@@ -337,6 +328,35 @@
 
     // ---------- Loop principal ----------
 
+    /**
+     * Pausa el escaneo automático durante `ms` mostrando una cuenta regresiva
+     * clara, y lo reanuda solo al terminar. Se usa cuando Gemini responde que
+     * está saturado o que se agotó la cuota, para no seguir golpeando la API
+     * cada `OCR_INTERVAL_MS` y así evitar una cascada de errores repetidos.
+     */
+    function pausarEscaneo(ms, mensajeBase) {
+        stopOcrLoop();
+        if (pausaTimer) {
+            clearInterval(pausaTimer);
+            pausaTimer = null;
+        }
+        let restante = Math.ceil(ms / 1000);
+        const actualizar = () => {
+            setStatus('warn', `${mensajeBase} ${restante}s…`);
+        };
+        actualizar();
+        pausaTimer = setInterval(() => {
+            restante -= 1;
+            if (restante <= 0) {
+                clearInterval(pausaTimer);
+                pausaTimer = null;
+                if (scanning) startOcrLoop();
+                return;
+            }
+            actualizar();
+        }, 1000);
+    }
+
     async function runOcrOnce() {
         if (!scanning || busyOcr || busyIngreso) return;
         busyOcr = true;
@@ -351,9 +371,8 @@
             if (!blob) return;
 
             const result = await reconocerEnServidor(blob);
-            const { placa, confianza, textoCrudo, ms } = result;
-            confianzaOcrEl.textContent = `OCR ${confianza || 0}%`;
-            updateDebugView(frame, textoCrudo, ms);
+            const { placa, confianza } = result;
+            confianzaOcrEl.textContent = `IA ${confianza || 0}%`;
 
             if (!placa) {
                 setStatus('scanning', 'Buscando placa…');
@@ -362,18 +381,46 @@
 
             updatePlacaUi(placa);
             placaManual.value = placa;
-            pushToBuffer(placa);
 
+            if ((confianza || 0) >= CONFIANZA_DIRECTA) {
+                setStatus('scanning', `Detectada ${placa} (${confianza}%)`);
+                await registrarIngreso(placa);
+                return;
+            }
+
+            pushToBuffer(placa);
             const matches = placaBuffer.filter((p) => p === placa).length;
-            setStatus('scanning', `Detectando ${placa} (${matches}/${placaBuffer.length})`);
+            setStatus('scanning', `Confirmando ${placa} (${matches}/${CONSENSUS_MIN})`);
 
             const winner = computeConsensus();
             if (winner) {
                 await registrarIngreso(winner);
             }
         } catch (err) {
-            console.error('OCR error', err);
+            console.error('OCR error', err.message || err);
+            if (err.code === 'GEMINI_NOT_CONFIGURED') {
+                showMsg('warning', 'Falta la API Key de Gemini. Configúrala en Configuración → Inteligencia Artificial.');
+                const msgEl = document.getElementById('msgBox');
+                if (msgEl) {
+                    msgEl.innerHTML = 'Falta la API Key de Gemini. <a href="configuracion.html" class="alert-link">Abrir configuración</a>.';
+                }
+                setStatus('warn', 'IA no configurada');
+                scanning = false;
+                stopOcrLoop();
+                return;
+            }
+            if (err.code === 'GEMINI_QUOTA') {
+                showMsg('warning', 'Se alcanzó el límite de solicitudes de Gemini. El escaneo se reanuda automáticamente en unos segundos.');
+                pausarEscaneo(QUOTA_COOLDOWN_MS, 'Límite de Gemini alcanzado. Reintentando en');
+                return;
+            }
+            if (err.code === 'GEMINI_OVERLOADED') {
+                showMsg('warning', err.message || 'Gemini está saturado en este momento.');
+                pausarEscaneo(OVERLOAD_COOLDOWN_MS, 'Gemini saturado. Reintentando en');
+                return;
+            }
             setStatus('err', err.message || 'Error OCR');
+            showMsg('danger', err.message || 'Error al reconocer la placa');
         } finally {
             busyOcr = false;
         }
@@ -419,117 +466,40 @@
 
             scanning = true;
             placaBuffer = [];
-            btnStart.disabled = true;
-            btnStop.disabled = false;
+            cameraRetryCount = 0;
             setStatus('scanning', 'Escaneo automático activo');
             startOcrLoop();
         } catch (err) {
             console.error(err);
-            showMsg('danger', 'No se pudo acceder a la cámara. Use HTTPS/localhost y permita el permiso.');
             setStatus('err', 'Sin cámara');
-            btnStart.disabled = false;
-            btnStop.disabled = true;
+            if (cameraRetryCount < CAMERA_RETRY_MAX) {
+                cameraRetryCount += 1;
+                showMsg('danger', `No se pudo acceder a la cámara. Reintentando… (${cameraRetryCount}/${CAMERA_RETRY_MAX})`);
+                clearTimeout(cameraRetryTimer);
+                cameraRetryTimer = setTimeout(startCamera, CAMERA_RETRY_MS);
+            } else {
+                showMsg('danger', 'No se pudo acceder a la cámara. Use HTTPS/localhost, permita el permiso y recargue la página.');
+            }
         }
     }
 
     function stopCamera() {
         scanning = false;
         stopOcrLoop();
+        clearTimeout(cameraRetryTimer);
         if (stream) {
             stream.getTracks().forEach((t) => t.stop());
             stream = null;
         }
         imageCapture = null;
         video.srcObject = null;
-        btnStart.disabled = false;
-        btnStop.disabled = true;
         setStatus('idle', 'Detenido');
-        confianzaOcrEl.textContent = 'OCR idle';
+        confianzaOcrEl.textContent = 'IA idle';
     }
 
-    // ---------- Prueba con imágenes de referencia ----------
-
-    async function testOneImage(src, expected) {
-        const res = await fetch(src + '?ts=' + Date.now());
-        if (!res.ok) throw new Error('No se pudo cargar ' + src);
-        const blob = await res.blob();
-
-        // Mostrar preview en depuración
-        if (chkDebug.checked) {
-            const bmp = await createImageBitmap(blob);
-            const preview = drawSourceToCanvas(bmp, bmp.width, bmp.height);
-            if (typeof bmp.close === 'function') bmp.close();
-            if (preview) updateDebugView(preview, '(enviando…)', null);
-        }
-
-        const result = await reconocerEnServidor(blob);
-        if (chkDebug.checked && workCanvas.width) {
-            updateDebugView(workCanvas, result.textoCrudo, result.ms);
-        }
-        return {
-            ok: result.placa === expected,
-            placa: result.placa,
-            conf: result.confianza,
-            raw: result.textoCrudo,
-            ms: result.ms
-        };
-    }
-
-    async function probarImagenReferencia() {
-        hideMsg();
-        setStatus('scanning', 'Probando imágenes de referencia…');
-        btnTestRef.disabled = true;
-        try {
-            const tests = [
-                { src: '../test/placa-omg650.png', expected: 'OMG650' },
-                { src: '../test/placa-cee015.png', expected: 'CEE015' }
-            ];
-
-            const resultados = [];
-            for (const t of tests) {
-                try {
-                    const r = await testOneImage(t.src, t.expected);
-                    resultados.push({ ...r, label: t.expected });
-                } catch (err) {
-                    resultados.push({
-                        ok: false,
-                        placa: null,
-                        conf: 0,
-                        raw: String(err.message || err),
-                        label: t.expected
-                    });
-                }
-            }
-
-            const ultimaConLectura = [...resultados].reverse().find((r) => r.placa);
-            if (ultimaConLectura) {
-                updatePlacaUi(ultimaConLectura.placa);
-                placaManual.value = ultimaConLectura.placa;
-                confianzaOcrEl.textContent = `OCR ${ultimaConLectura.conf || 0}%`;
-            }
-
-            const resumen = resultados
-                .map((r) => {
-                    const timing = r.ms != null ? `, ${r.ms}ms` : '';
-                    return `${r.label}: ${r.placa || '(sin lectura)'} ${r.ok ? 'OK' : 'FALLÓ'} (${r.conf || 0}%${timing})`;
-                })
-                .join(' · ');
-            const allOk = resultados.every((r) => r.ok);
-            showMsg(allOk ? 'success' : 'warning', resumen);
-            setStatus(allOk ? 'ok' : 'warn', allOk ? 'Referencias OK' : 'Referencias parciales');
-            beep(allOk);
-        } catch (err) {
-            console.error(err);
-            showMsg('danger', err.message || 'Error en prueba de referencia');
-            setStatus('err', 'Error prueba');
-        } finally {
-            btnTestRef.disabled = false;
-        }
-    }
-
-    btnStart.addEventListener('click', startCamera);
-    btnStop.addEventListener('click', stopCamera);
-    btnTestRef.addEventListener('click', probarImagenReferencia);
+    // Nota: la prueba con imágenes de referencia (placas simuladas "en
+    // movimiento") vive aparte en public/test/test-runner.html, pensada
+    // para desarrollo/QA y no para la pantalla del operador.
 
     btnManual.addEventListener('click', () => {
         registrarIngreso(placaManual.value, { fromManual: true });

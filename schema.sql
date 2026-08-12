@@ -79,6 +79,8 @@ CREATE TABLE configuracion_empresa (
     zona_horaria VARCHAR(50) DEFAULT 'America/Bogota',
     operacion_24h BOOLEAN DEFAULT FALSE,
     reglamento TEXT DEFAULT NULL,
+    gemini_api_key TEXT DEFAULT NULL,
+    gemini_modelo VARCHAR(50) NOT NULL DEFAULT 'gemini-3.1-flash-lite',
     FOREIGN KEY (id_empresa) REFERENCES empresas(id_empresa)
 ) ENGINE=InnoDB;
 

@@ -98,7 +98,10 @@ router.post('/login', validateLoginData, async (req, res) => {
 
         // Obtener configuración de la empresa
         const [config] = await pool.query(
-            'SELECT * FROM configuracion_empresa WHERE id_empresa = ?',
+            `SELECT id_configuracion, id_empresa,
+                    horario_apertura, horario_cierre, iva_porcentaje, moneda, zona_horaria,
+                    operacion_24h, reglamento, gemini_modelo
+             FROM configuracion_empresa WHERE id_empresa = ?`,
             [id_empresa]
         );
 
