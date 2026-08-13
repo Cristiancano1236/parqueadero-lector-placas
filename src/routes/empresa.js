@@ -6,6 +6,7 @@ const requireAdmin = require('../middleware/requireAdmin');
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
+const { publicDir } = require('../paths');
 
 // Configuración de subida en memoria para almacenar BLOB en BD
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } });
@@ -156,7 +157,7 @@ router.post('/logo', verifyToken, requireAdmin, upload.single('logo'), async (re
         const [prev] = await pool.query('SELECT logo_url FROM empresas WHERE id_empresa = ?', [req.user.id_empresa]);
         const oldVal = prev && prev[0] && prev[0].logo_url;
         if (oldVal && typeof oldVal === 'string' && oldVal.startsWith('/uploads/logos/')) {
-            const oldPath = path.join(__dirname, '../../public', oldVal);
+            const oldPath = path.join(publicDir, oldVal);
             try { if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath); } catch(e) { console.warn('No se pudo eliminar logo previo:', e.message); }
         }
         // Guardar BLOB en empresas.logo_url

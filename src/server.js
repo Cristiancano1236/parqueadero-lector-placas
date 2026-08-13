@@ -123,12 +123,20 @@ app.get('/admin/tipos-vehiculos.html', (req, res) => {
     res.sendFile(path.join(publicDir, 'admin/tipos-vehiculos.html'));
 });
 
+app.get('/setup-movil', (req, res) => {
+    res.sendFile(path.join(publicDir, 'setup-movil.html'));
+});
+app.get('/setup-movil.html', (req, res) => {
+    res.sendFile(path.join(publicDir, 'setup-movil.html'));
+});
+
 // Manejo de rutas no encontradas
 app.use((req, res) => {
     res.status(404).sendFile(path.join(publicDir, '404.html'));
 });
 
 const PORT = process.env.PORT || 3000;
+const PORT_SETUP = process.env.PORT_SETUP || 3080;
 const certPath = path.join(certsDir, 'dev-cert.pem');
 const keyPath = path.join(certsDir, 'dev-key.pem');
 const httpsFlag = String(process.env.HTTPS || '').trim().toLowerCase();
@@ -154,6 +162,16 @@ function runAfterListen() {
     require('./config/migrate').runStartupMigrations()
         .then(() => console.log('Migraciones de esquema: OK'))
         .catch((err) => console.warn('Migraciones de esquema:', err.message));
+
+    try {
+        require('./services/setupHttpServer').startSetupServer({
+            port: PORT_SETUP,
+            appPort: PORT,
+            useHttps
+        });
+    } catch (err) {
+        console.warn('Servidor de guía móvil:', err.message);
+    }
 }
 
 function imprimirUrls(protocol) {
@@ -168,11 +186,12 @@ function imprimirUrls(protocol) {
         });
     }
     console.log(`Raíz:    ${projectRoot}`);
+    console.log(`Conectar celular: http://localhost:${PORT_SETUP}/`);
 }
 
 if (forceHttps && !hasCerts) {
     console.error('HTTPS=true pero faltan certificados en certs/.');
-    console.error('Ejecuta: npm run certs');
+    console.error('Ejecuta Preparar-HTTPS.bat (o npm run certs) como administrador.');
     process.exit(1);
 }
 
@@ -190,7 +209,7 @@ if (useHttps) {
     });
 } else {
     if (!hasCerts) {
-        console.log('Aviso: sin certificados en certs/. Usando HTTP. Para HTTPS: npm run certs');
+        console.log('Aviso: sin certificados en certs/. Usando HTTP. Para HTTPS: Preparar-HTTPS.bat o npm run certs');
     }
     http.createServer(app).listen(PORT, '0.0.0.0', () => {
         imprimirUrls('http');

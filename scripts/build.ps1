@@ -1,138 +1,153 @@
-# Empaqueta una distribución portable lista para ejecutar con Node.js
+# Empaqueta ParkSystem como .exe (pkg) + mkcert + INSTALAR.bat (sin Inno Setup).
 # Uso: npm run build
-#
-# Salida: dist/parqueadero/
-#   - src/, public/, schema.sql, package.json, package-lock.json
-#   - node_modules/ (solo producción)
-#   - .env.example, iniciar.bat, LEEME.txt
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 $DistRoot = Join-Path $Root "dist"
-$Out = Join-Path $DistRoot "parqueadero"
+$DistInstaller = Join-Path $Root "dist-installer"
+$ExePath = Join-Path $DistRoot "parqueadero.exe"
+$MkcertUrl = "https://dl.filippo.io/mkcert/latest?for=windows/amd64"
 
-Write-Host "=== Build portable ParkSystem ===" -ForegroundColor Cyan
+Write-Host "=== Build .exe ParkSystem (pkg) ===" -ForegroundColor Cyan
 Write-Host "Origen: $Root"
-Write-Host "Destino: $Out"
+Write-Host "Destino: $DistRoot"
 
 # 1) Limpiar
 if (Test-Path $DistRoot) {
     Write-Host "Limpiando dist/ ..."
     Remove-Item -Recurse -Force $DistRoot
 }
-New-Item -ItemType Directory -Force -Path $Out | Out-Null
+New-Item -ItemType Directory -Force -Path $DistRoot | Out-Null
 
-# 2) Copiar código y assets
-Write-Host "Copiando fuentes y assets ..."
-Copy-Item -Recurse (Join-Path $Root "src") (Join-Path $Out "src")
-Copy-Item -Recurse (Join-Path $Root "public") (Join-Path $Out "public")
-Copy-Item (Join-Path $Root "schema.sql") (Join-Path $Out "schema.sql")
-Copy-Item (Join-Path $Root "package.json") (Join-Path $Out "package.json")
-
-if (Test-Path (Join-Path $Root "package-lock.json")) {
-    Copy-Item (Join-Path $Root "package-lock.json") (Join-Path $Out "package-lock.json")
-}
-
-if (Test-Path (Join-Path $Root ".env.example")) {
-    Copy-Item (Join-Path $Root ".env.example") (Join-Path $Out ".env.example")
-}
-
-if (Test-Path (Join-Path $Root ".env")) {
-    Copy-Item (Join-Path $Root ".env") (Join-Path $Out ".env.example.from-dev") -ErrorAction SilentlyContinue
-}
-
-$ScriptsOut = Join-Path $Out "scripts"
-New-Item -ItemType Directory -Force -Path $ScriptsOut | Out-Null
-if (Test-Path (Join-Path $Root "scripts\generar-certs.ps1")) {
-    Copy-Item (Join-Path $Root "scripts\generar-certs.ps1") (Join-Path $ScriptsOut "generar-certs.ps1")
-}
-if (Test-Path (Join-Path $Root "scripts\crear-empresa-local.js")) {
-    Copy-Item (Join-Path $Root "scripts\crear-empresa-local.js") (Join-Path $ScriptsOut "crear-empresa-local.js")
-}
-
-# 3) Instalar dependencias de producción en dist
-Write-Host "Instalando dependencias de producción en dist (puede tardar) ..."
-Push-Location $Out
+# 2) Empaquetar con pkg
+Write-Host "Ejecutando pkg (puede tardar la primera vez) ..."
+Push-Location $Root
 try {
-    npm install --omit=dev --no-audit --no-fund
-    if ($LASTEXITCODE -ne 0) { throw "npm install falló con código $LASTEXITCODE" }
+    npx --yes pkg . --public --target node18-win-x64 --output $ExePath
+    if ($LASTEXITCODE -ne 0) { throw "pkg falló con código $LASTEXITCODE" }
 } finally {
     Pop-Location
 }
 
-# 4) iniciar.bat
-$Bat = @"
+if (-not (Test-Path $ExePath)) {
+    throw "No se generó $ExePath"
+}
+
+# 3) Archivos junto al .exe
+Write-Host "Copiando public/, schema.sql y .env.example ..."
+Copy-Item -Recurse (Join-Path $Root "public") (Join-Path $DistRoot "public")
+Copy-Item (Join-Path $Root "schema.sql") (Join-Path $DistRoot "schema.sql")
+if (Test-Path (Join-Path $Root ".env.example")) {
+    Copy-Item (Join-Path $Root ".env.example") (Join-Path $DistRoot ".env.example")
+}
+
+$ScriptsOut = Join-Path $DistRoot "scripts"
+New-Item -ItemType Directory -Force -Path $ScriptsOut | Out-Null
+Copy-Item (Join-Path $Root "scripts\setup-https.ps1") (Join-Path $ScriptsOut "setup-https.ps1")
+Copy-Item (Join-Path $Root "scripts\generar-certs.ps1") (Join-Path $ScriptsOut "generar-certs.ps1")
+Copy-Item (Join-Path $Root "scripts\install-windows.ps1") (Join-Path $ScriptsOut "install-windows.ps1")
+
+# 4) mkcert portable
+$ToolsOut = Join-Path $DistRoot "tools"
+New-Item -ItemType Directory -Force -Path $ToolsOut | Out-Null
+$MkcertOut = Join-Path $ToolsOut "mkcert.exe"
+Write-Host "Descargando mkcert (Windows amd64) ..."
+try {
+    Invoke-WebRequest -Uri $MkcertUrl -OutFile $MkcertOut -UseBasicParsing
+} catch {
+    throw "No se pudo descargar mkcert desde $MkcertUrl : $($_.Exception.Message)"
+}
+if (-not (Test-Path $MkcertOut) -or (Get-Item $MkcertOut).Length -lt 100000) {
+    throw "mkcert.exe descargado parece inválido"
+}
+Write-Host ("mkcert OK ({0:N1} MB)" -f ((Get-Item $MkcertOut).Length / 1MB))
+
+# 5) Preparar-HTTPS.bat
+$PrepBat = @"
 @echo off
 cd /d "%~dp0"
-title ParkSystem - Parqueadero
-
-if not exist ".env" (
-  if exist ".env.example" (
-    copy /Y ".env.example" ".env" >nul
-    echo Se creo .env desde .env.example - editalo con tu DB_PASSWORD, JWT_SECRET y APP_ENCRYPTION_KEY.
-  ) else (
-    echo ERROR: falta .env
-    pause
-    exit /b 1
-  )
-)
-
-where node >nul 2>nul
-if errorlevel 1 (
-  echo ERROR: Node.js no esta instalado o no esta en el PATH.
-  echo Instala Node.js 18+ desde https://nodejs.org
-  pause
-  exit /b 1
-)
-
-echo Iniciando ParkSystem...
-node src\server.js
+title ParkSystem - Preparar HTTPS
+echo Ejecutando setup-https.ps1 (se recomienda Ejecutar como administrador)...
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\setup-https.ps1" -AppRoot "%~dp0"
 echo.
 pause
 "@
-Set-Content -Path (Join-Path $Out "iniciar.bat") -Value $Bat -Encoding ASCII
+Set-Content -Path (Join-Path $DistRoot "Preparar-HTTPS.bat") -Value $PrepBat -Encoding ASCII
 
-# 5) LEEME.txt
+# 6) INSTALAR.bat (pide admin, copia a Program Files, HTTPS, accesos directos)
+$InstallBat = @"
+@echo off
+cd /d "%~dp0"
+title ParkSystem - Instalar
+:: Re-lanzar como administrador si hace falta
+net session >nul 2>&1
+if %errorLevel% neq 0 (
+  echo Solicitando permisos de administrador...
+  powershell -NoProfile -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
+  exit /b
+)
+
+echo Instalando ParkSystem...
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\install-windows.ps1" -SourceRoot "%~dp0"
+if errorlevel 1 (
+  echo.
+  echo La instalacion fallo.
+  pause
+  exit /b 1
+)
+echo.
+echo Listo. Puedes iniciar ParkSystem desde el escritorio.
+pause
+"@
+Set-Content -Path (Join-Path $DistRoot "INSTALAR.bat") -Value $InstallBat -Encoding ASCII
+
+# 7) LEEME.txt
 $Leeme = @"
-ParkSystem - Distribucion portable
+ParkSystem - Distribucion Windows
 =================================
 
-Requisitos en el PC destino:
-- Node.js 18 o superior (en PATH)
-- MariaDB / MySQL con la base creada (ejecuta schema.sql)
-- Conexion a internet (el lector de placas usa Gemini AI)
-- (Opcional) mkcert si quieres HTTPS local para la camara del celular
+Requisitos:
+- Windows 64 bits
+- MariaDB / MySQL (ejecuta schema.sql)
+- Internet (Gemini AI para el lector de placas)
+- NO hace falta instalar Node.js ni programas extras
 
-Primer arranque:
-1. Copia esta carpeta completa al PC destino.
-2. Edita .env (o parte de .env.example) con DB_*, JWT_SECRET y APP_ENCRYPTION_KEY.
-3. Ejecuta schema.sql en MariaDB/MySQL si la BD no existe.
-4. Doble clic en iniciar.bat  (o: node src\server.js)
-5. Inicia sesion como admin y ve a Configuracion -> Inteligencia Artificial.
-   Pega tu API Key de Gemini (gratis en https://aistudio.google.com/apikey).
+Instalacion (recomendado):
+1. Copia esta carpeta al PC destino (o descomprime el ZIP).
+2. Clic derecho en INSTALAR.bat -> Ejecutar como administrador.
+3. Edita .env en Program Files\ParkSystem si hace falta (DB_PASSWORD).
+4. Abre ParkSystem desde el escritorio.
+5. En el movil: http://IP-DEL-PC:3080/ (Conectar celular) e instala la CA.
+6. Configura la API Key de Gemini en Configuracion.
 
-HTTPS local (camara / movil):
-1. En el PC: winget install FiloSottile.mkcert
-2. En esta carpeta: powershell -ExecutionPolicy Bypass -File scripts\generar-certs.ps1
-3. En .env pon HTTPS=true
-4. Reinicia con iniciar.bat
-5. En el movil instala la CA de mkcert (mkcert -CAROOT) y abre https://IP:3000
+Uso portable (sin instalar):
+1. Ejecuta Preparar-HTTPS.bat como administrador.
+2. Doble clic en parqueadero.exe
 
-Lector de placas:
-- Usa Gemini AI (Google). El celular solo envia el frame.
-- Requiere internet y una API Key configurada por empresa.
-- Menu: Lector de placas (tras iniciar sesion).
+Si cambia la IP WiFi del PC:
+- Ejecuta Preparar-HTTPS.bat
+- No hace falta reinstalar la CA en el movil
 
-No borres:
-- node_modules/
-- public/             (interfaz)
+No borres: parqueadero.exe, public/, tools/, scripts/, INSTALAR.bat
 "@
-Set-Content -Path (Join-Path $Out "LEEME.txt") -Value $Leeme -Encoding UTF8
+Set-Content -Path (Join-Path $DistRoot "LEEME.txt") -Value $Leeme -Encoding UTF8
 
-# 6) Resumen
-$Size = (Get-ChildItem $Out -Recurse -File | Measure-Object -Property Length -Sum).Sum
-$SizeMb = [math]::Round($Size / 1MB, 1)
+# 8) ZIP para repartir (solo PowerShell integrado en Windows)
+Write-Host "Generando ZIP de distribucion ..."
+if (Test-Path $DistInstaller) {
+    Remove-Item -Recurse -Force $DistInstaller
+}
+New-Item -ItemType Directory -Force -Path $DistInstaller | Out-Null
+$ZipPath = Join-Path $DistInstaller "ParkSystem.zip"
+if (Test-Path $ZipPath) { Remove-Item -Force $ZipPath }
+Compress-Archive -Path (Join-Path $DistRoot "*") -DestinationPath $ZipPath -CompressionLevel Optimal
+Write-Host "ZIP OK -> dist-installer\ParkSystem.zip" -ForegroundColor Green
+
+# 9) Resumen
+$ExeSizeMb = [math]::Round((Get-Item $ExePath).Length / 1MB, 1)
+$ZipSizeMb = [math]::Round((Get-Item $ZipPath).Length / 1MB, 1)
 Write-Host ""
-Write-Host "Build OK -> $Out" -ForegroundColor Green
-Write-Host ("Tamano aproximado: {0} MB" -f $SizeMb)
-Write-Host "Arranque: dist\parqueadero\iniciar.bat"
+Write-Host "Build OK -> $ExePath" -ForegroundColor Green
+Write-Host ("Tamano del .exe: {0} MB  |  ZIP: {1} MB" -f $ExeSizeMb, $ZipSizeMb)
+Write-Host "Para el cliente: dist-installer\ParkSystem.zip  ->  INSTALAR.bat (como admin)"
+Write-Host "Arranque directo: dist\parqueadero.exe  |  HTTPS: dist\Preparar-HTTPS.bat"

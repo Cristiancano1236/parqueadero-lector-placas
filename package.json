@@ -3,6 +3,16 @@
   "version": "1.0.0",
   "description": "Sistema de gestión de parqueadero con lector de placas (Gemini AI)",
   "main": "src/server.js",
+  "bin": "src/server.js",
+  "pkg": {
+    "assets": [
+      "public/**/*"
+    ],
+    "targets": [
+      "node18-win-x64"
+    ],
+    "outputPath": "dist"
+  },
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
@@ -34,6 +44,7 @@
   },
   "devDependencies": {
     "nodemon": "^3.1.10",
+    "pkg": "^5.8.1",
     "rimraf": "^5.0.7"
   },
   "nodemonConfig": {

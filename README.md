@@ -90,38 +90,21 @@ Migraciones de esquema: OK
 
 ## HTTPS local (cámara / móvil)
 
-La cámara del navegador en el celular exige HTTPS (o localhost).
+La cámara del navegador en el celular exige HTTPS de confianza.
 
-1. Instalar mkcert (Windows):
+**Con el instalador:** ya queda preparado. En el móvil abre `http://IP:3080/` (guía + descarga de CA) y luego el lector por HTTPS.
 
-   ```bash
-   winget install FiloSottile.mkcert
-   ```
+**En desarrollo:**
 
-2. Generar certificados (localhost + IP LAN):
+```bash
+npm run certs    # setup-https.ps1 (admin; usa tools/mkcert.exe o mkcert del PATH)
+npm start
+```
 
-   ```bash
-   npm run certs
-   ```
+Luego en el móvil: `http://IP:3080/` → instalar CA → abrir `https://IP:3000/admin/lector-placas.html`.
 
-3. En `.env`:
+Si cambia la IP WiFi del PC, vuelve a ejecutar `npm run certs` o `Preparar-HTTPS.bat` (misma CA; no hay que reinstalarla en el teléfono).
 
-   | Valor | Efecto |
-   |-------|--------|
-   | `HTTPS=true` | Fuerza HTTPS (falla si no hay `certs/`) |
-   | `HTTPS=false` | Fuerza HTTP |
-   | *(omitido)* | HTTPS automático si existen `certs/dev-cert.pem` y `certs/dev-key.pem` |
-
-4. Arranca con `npm start` y abre las URLs `https://` que imprime la consola.
-
-### Confiar en el certificado en el móvil (una sola vez)
-
-1. En el PC: `mkcert -CAROOT` → copia `rootCA.pem` al teléfono  
-2. **Android:** Ajustes → Seguridad → instalar certificado CA  
-3. **iOS:** instalar perfil y confiar en el certificado  
-4. Abre `https://IP:3000` (la IP que muestra el servidor)
-
-Si cambia la IP del PC (otro WiFi), vuelve a ejecutar `npm run certs` y reinicia el servidor.
 
 ---
 
@@ -159,9 +142,22 @@ En la UI del lector puedes:
 
 ---
 
-## Build / distribución portable
+## Build / distribución Windows
 
-`npm run build` genera una **carpeta portable** lista para copiar a otro PC Windows:
+### Usuario final (recomendado)
+
+1. Instala **MariaDB/MySQL** y ejecuta `schema.sql`.
+2. Entrega al cliente el ZIP `dist-installer/ParkSystem.zip` (o la carpeta `dist/`).
+3. En el PC destino: clic derecho en **`INSTALAR.bat`** → **Ejecutar como administrador**.
+4. Eso copia la app a `Program Files\ParkSystem`, prepara HTTPS y crea el acceso directo.
+5. Edita `.env` si hace falta (`DB_PASSWORD`, secretos).
+6. Abre ParkSystem → **Lector de placas** → **Conectar celular** (o en el móvil `http://IP-DEL-PC:3080/`).
+7. Instala la CA en el teléfono **una sola vez** y abre el lector por HTTPS.
+8. Configura la API Key de Gemini en **Configuración → Inteligencia Artificial**.
+
+Si cambia la IP WiFi del PC, ejecuta **Preparar HTTPS**. No hace falta reinstalar la CA en el móvil.
+
+### Desarrollador
 
 ```bash
 npm run build
@@ -170,19 +166,24 @@ npm run build
 Salida:
 
 ```text
-dist/parqueadero/
-  iniciar.bat      ← doble clic para arrancar
-  LEEME.txt
+dist/
+  INSTALAR.bat          ← clic derecho → Ejecutar como administrador
+  parqueadero.exe
+  Preparar-HTTPS.bat
+  public/
+  tools/mkcert.exe
+  scripts/
   .env.example
   schema.sql
-  src/
-  public/
-  node_modules/
-  scripts/
+  LEEME.txt
+
+dist-installer/
+  ParkSystem.zip        ← listo para copiar / enviar al cliente
 ```
 
-En el PC destino hace falta **Node.js 18+**, MariaDB/MySQL e internet.  
-Edita `.env`, ejecuta `schema.sql` si hace falta, abre `iniciar.bat` y configura la API Key de Gemini en el panel.
+Requisitos del PC destino: **MariaDB/MySQL** + internet (Gemini). **No hace falta Node.js ni instalar Inno Setup.**
+
+Puerto **3080** (`PORT_SETUP`): solo guía móvil y descarga de `ca.crt` (HTTP auxiliar; la app sigue en 3000).
 
 ---
 
@@ -191,25 +192,26 @@ Edita `.env`, ejecuta `schema.sql` si hace falta, abre `iniciar.bat` y configura
 ```text
 src/
   server.js                 # Express + HTTPS + rutas
-  paths.js                  # Raíz del proyecto (dev / dist)
+  paths.js                  # Raíz del proyecto (dev / dist / .exe)
   config/db.js
-  config/migrate.js         # Columnas nuevas en instalaciones existentes
+  config/migrate.js
   middleware/
-  routes/                   # API REST (auth, movimientos, lector, ia, …)
+  routes/
   services/geminiPlateOcr.js
-  utils/placa.js            # Normalización / clasificación de placas
-  utils/crypto.js           # AES-256-GCM para la API Key
+  services/setupHttpServer.js  # HTTP :3080 guía + CA
+  utils/
 public/
-  admin/configuracion.html  # Empresa + horarios + IA (API Key)
-  admin/mensualidades.html
+  setup-movil.html          # Guía conectar celular
   admin/lector-placas.html
-  js/lector-placas.js
-  js/placa-utils.js
-  test/                     # Imágenes de referencia
+  admin/configuracion.html
+  vendor/qrcode.min.js
 scripts/
+  setup-https.ps1           # HTTPS + CA
+  install-windows.ps1       # Instalador a Program Files
   generar-certs.ps1
   build.ps1
-  crear-empresa-local.js
+installer/
+  parksystem.iss            # Opcional (Inno); el build ya no lo requiere
 schema.sql
 .env.example
 ```
@@ -237,8 +239,8 @@ Todas las rutas bajo `/api/*` (salvo login) requieren `Authorization: Bearer <to
 |--------|-------------|
 | `npm start` | Arranca el servidor |
 | `npm run dev` | Arranca con nodemon |
-| `npm run certs` | Genera certificados HTTPS locales (mkcert) |
-| `npm run build` | Genera `dist/parqueadero/` portable |
+| `npm run certs` | Prepara HTTPS/CA (`setup-https.ps1`, admin) |
+| `npm run build` | Genera `dist/` + `dist-installer/ParkSystem.zip` (con INSTALAR.bat) |
 | `npm run build:clean` | Borra `dist/` |
 
 ---
@@ -247,7 +249,8 @@ Todas las rutas bajo `/api/*` (salvo login) requieren `Authorization: Bearer <to
 
 | Variable | Descripción |
 |----------|-------------|
-| `PORT` | Puerto (default `3000`) |
+| `PORT` | Puerto de la app (default `3000`) |
+| `PORT_SETUP` | Puerto HTTP auxiliar guía/CA (default `3080`) |
 | `HTTPS` | `true` / `false` / omitir (auto si hay certs) |
 | `JWT_SECRET` | Secreto JWT |
 | `APP_ENCRYPTION_KEY` | Clave para cifrar la API Key de Gemini en la BD. Si se omite, se deriva de `JWT_SECRET` |

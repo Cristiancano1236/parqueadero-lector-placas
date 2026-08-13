@@ -22,7 +22,10 @@ body {
     position: fixed;
     top: 0;
     left: 0;
-    height: 100vh;
+    bottom: 0;
+    height: 100%;
+    height: 100dvh;
+    max-height: 100dvh;
     width: var(--sidebar-width);
     background: var(--primary-color);
     color: white;
@@ -30,12 +33,13 @@ body {
     z-index: 1000;
     display: flex;
     flex-direction: column;
-    -webkit-overflow-scrolling: touch;
+    overflow: hidden;
 }
 
 .sidebar-header {
     padding: 1.5rem;
     text-align: center;
+    flex-shrink: 0;
 }
 
 .logo-container {
@@ -60,10 +64,13 @@ body {
 }
 
 .sidebar-nav {
-    flex-grow: 1;
+    flex: 1 1 auto;
+    min-height: 0;
     padding: 1rem 0;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
+    touch-action: pan-y;
 }
 
 .sidebar .nav-link {
@@ -88,7 +95,9 @@ body {
 
 .sidebar-footer {
     padding: 1rem;
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
     border-top: 1px solid rgba(255, 255, 255, 0.1);
+    flex-shrink: 0;
 }
 
 /* Main Content Styles */
@@ -250,6 +259,11 @@ body {
 @media (max-width: 992px) {
     .sidebar {
         transform: translateX(-100%);
+        /* Evita que la barra del navegador móvil tape Cerrar sesión */
+        top: 0;
+        bottom: 0;
+        height: auto;
+        max-height: none;
     }
 
     .sidebar.show {

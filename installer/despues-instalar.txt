@@ -1,0 +1,13 @@
+ParkSystem quedó instalado.
+
+Siguiente (importante):
+1. Asegúrate de tener MariaDB/MySQL con la base (schema.sql está en la carpeta de instalación).
+2. Edita el archivo .env si hace falta (contraseña de BD, secretos).
+3. Inicia ParkSystem.
+4. En el menú Lector de placas pulsa "Conectar celular", o abre en el móvil:
+   http://IP-DEL-PC:3080/
+5. Instala el certificado (CA) en el teléfono una sola vez.
+6. Abre el lector por HTTPS y permite la cámara.
+7. Configura tu API Key de Gemini en Configuración → Inteligencia Artificial.
+
+Si cambia la WiFi/IP del PC, ejecuta "Preparar HTTPS" desde el menú de inicio.
