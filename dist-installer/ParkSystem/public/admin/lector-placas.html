@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ParkSystem - Lector de placas</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="../css/dashboard.css" rel="stylesheet">
+    <style>
+        body { font-family: 'Poppins', sans-serif; }
+        .lector-wrap {
+            position: relative;
+            background: #0b1220;
+            border-radius: 12px;
+            overflow: hidden;
+            aspect-ratio: 16 / 10;
+            max-height: 70vh;
+        }
+        @media (max-width: 576px) {
+            .lector-wrap {
+                aspect-ratio: 4 / 3;
+                max-height: 42vh;
+            }
+        }
+        .lector-wrap video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        .placa-big {
+            font-size: clamp(1.8rem, 5vw, 3rem);
+            letter-spacing: 0.18em;
+            font-weight: 600;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        }
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.4rem 0.85rem;
+            border-radius: 999px;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+        .status-idle { background: #e5e7eb; color: #374151; }
+        .status-scanning { background: #dbeafe; color: #1d4ed8; }
+        .status-ok { background: #dcfce7; color: #166534; }
+        .status-warn { background: #fef3c7; color: #92400e; }
+        .status-err { background: #fee2e2; color: #991b1b; }
+        #workCanvas { display: none; }
+    </style>
+    <script>
+        if (!localStorage.getItem('token')) { window.location.href = '/'; }
+    </script>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo-container"><div class="logo-circle"><span class="logo-text">PS</span></div></div>
+            <h5 class="mt-3 text-white">ParkSystem</h5>
+        </div>
+        <nav class="sidebar-nav">
+            <ul class="nav flex-column">
+                <li class="nav-item"><a href="dashboard.html" class="nav-link"><i class="fas fa-tachometer-alt"></i><span>Dashboard</span></a></li>
+                <li class="nav-item"><a href="vehiculos.html" class="nav-link"><i class="fas fa-car"></i><span>Vehículos</span></a></li>
+                <li class="nav-item"><a href="ingreso-salida.html" class="nav-link"><i class="fas fa-right-left"></i><span>Ingreso / Salida</span></a></li>
+                <li class="nav-item"><a href="lector-placas.html" class="nav-link active"><i class="fas fa-camera"></i><span>Lector de placas</span></a></li>
+                <li class="nav-item"><a href="mensualidades.html" class="nav-link"><i class="fas fa-calendar-check"></i><span>Mensualidades</span></a></li>
+                <li class="nav-item admin-only"><a href="configuracion.html" class="nav-link"><i class="fas fa-gear"></i><span>Configuración</span></a></li>
+                <li class="nav-item admin-only"><a href="tipos-vehiculos.html" class="nav-link"><i class="fas fa-tags"></i><span>Tipos de Vehículos</span></a></li>
+                <li class="nav-item admin-only"><a href="tarifas.html" class="nav-link"><i class="fas fa-money-bill-wave"></i><span>Tarifas</span></a></li>
+                <li class="nav-item admin-only"><a href="usuarios.html" class="nav-link"><i class="fas fa-users"></i><span>Usuarios</span></a></li>
+                <li class="nav-item admin-only"><a href="reportes.html" class="nav-link"><i class="fas fa-chart-bar"></i><span>Reportes</span></a></li>
+            </ul>
+        </nav>
+        <div class="sidebar-footer"><a href="#" class="nav-link" id="btnLogout"><i class="fas fa-sign-out-alt"></i><span>Cerrar Sesión</span></a></div>
+    </div>
+
+    <div class="main-content">
+        <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
+            <div class="container-fluid">
+                <button class="btn btn-link sidebar-toggle"><i class="fas fa-bars"></i></button>
+                <div class="navbar-collapse">
+                    <ul class="navbar-nav ms-auto">
+                        <li class="nav-item">
+                            <span class="nav-link"><i class="fas fa-user-circle me-2"></i><span id="userName">Usuario</span></span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </nav>
+
+        <div class="container-fluid py-4">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                <div>
+                    <h4 class="mb-1"><i class="fas fa-camera me-2 text-primary"></i>Lector automático de placas</h4>
+                    <p class="text-muted mb-0">Escaneo automático activo — no es necesario enfocar. Carro: ABC123 · Moto: ABC12D</p>
+                </div>
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <a href="/setup-movil.html" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-mobile-screen-button me-1"></i>Conectar celular
+                    </a>
+                    <span id="statusPill" class="status-pill status-idle"><i class="fas fa-circle"></i> En espera</span>
+                </div>
+            </div>
+
+            <div class="row g-4">
+                <div class="col-12 col-xl-8">
+                    <div class="lector-wrap">
+                        <video id="videoCam" playsinline muted autoplay></video>
+                    </div>
+                    <canvas id="workCanvas"></canvas>
+                </div>
+
+                <div class="col-12 col-xl-4">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-body">
+                            <div class="text-muted small mb-1">Última lectura</div>
+                            <div id="placaDetectada" class="placa-big text-dark mb-2">------</div>
+                            <div class="mb-3">
+                                <span class="badge bg-secondary" id="tipoDetectado">—</span>
+                                <span class="badge bg-light text-dark border ms-1" id="confianzaOcr">IA idle</span>
+                            </div>
+
+                            <div class="accordion accordion-flush mb-3" id="accManual">
+                                <div class="accordion-item border rounded">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button collapsed py-2" type="button" data-bs-toggle="collapse" data-bs-target="#collapseManual">
+                                            Corrección manual
+                                        </button>
+                                    </h2>
+                                    <div id="collapseManual" class="accordion-collapse collapse" data-bs-parent="#accManual">
+                                        <div class="accordion-body pt-0">
+                                            <div class="input-group">
+                                                <input type="text" id="placaManual" class="form-control text-uppercase" maxlength="10" placeholder="ABC123">
+                                                <button class="btn btn-success" type="button" id="btnIngresoManual">
+                                                    <i class="fas fa-play me-1"></i>Ingresar
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div id="msgBox" class="alert d-none mb-0" role="alert"></div>
+
+                            <div id="ultimoIngresoBox" class="mt-3 d-none">
+                                <hr>
+                                <h6 class="mb-2">Último ingreso</h6>
+                                <div id="ultimoIngresoBody" class="small"></div>
+                                <button type="button" class="btn btn-outline-secondary btn-sm mt-2" id="btnPrintTicket">
+                                    <i class="fas fa-print me-1"></i>Imprimir ticket
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card border-0 shadow-sm mt-3">
+                        <div class="card-body small text-muted">
+                            <div><i class="fas fa-info-circle me-1"></i> Requiere <strong>HTTPS</strong> o localhost para la cámara.</div>
+                            <div class="mt-1">El reconocimiento lo hace <strong>Gemini AI</strong>. Necesitas internet y una API Key en <a href="configuracion.html">Configuración</a>.</div>
+                            <div class="mt-1">La misma placa no se vuelve a registrar durante ~10 s.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="../js/placa-utils.js"></script>
+    <script src="../js/lector-placas.js"></script>
+</body>
+</html>

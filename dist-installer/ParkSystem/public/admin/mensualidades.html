@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ParkSystem - Mensualidades</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="../css/dashboard.css" rel="stylesheet">
+    <style>
+        .due-filters-bar {
+            background: linear-gradient(180deg, #f8fafc 0%, #fff 100%);
+            border-bottom: 1px solid #e9ecef;
+            padding: .75rem 1rem;
+        }
+        .due-filters-label {
+            font-size: .78rem;
+            font-weight: 600;
+            letter-spacing: .02em;
+            text-transform: uppercase;
+            color: #6c757d;
+        }
+        .due-filter-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: .4rem;
+            border: 1.5px solid #dee2e6;
+            border-radius: 999px;
+            padding: .35rem .85rem;
+            font-size: .82rem;
+            font-weight: 500;
+            background: #fff;
+            color: #495057;
+            transition: all .15s ease;
+            line-height: 1.2;
+        }
+        .due-filter-chip:hover {
+            border-color: #adb5bd;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 6px rgba(0,0,0,.06);
+        }
+        .due-filter-chip.active {
+            color: #fff;
+            border-color: transparent;
+            box-shadow: 0 2px 8px rgba(0,0,0,.12);
+        }
+        .due-filter-chip .chip-count {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 1.35rem;
+            height: 1.35rem;
+            padding: 0 .35rem;
+            border-radius: 999px;
+            font-size: .72rem;
+            font-weight: 700;
+            background: rgba(0,0,0,.08);
+        }
+        .due-filter-chip.active .chip-count { background: rgba(255,255,255,.25); }
+        .due-filter-chip[data-due=""] { border-color: #ced4da; }
+        .due-filter-chip[data-due=""].active { background: #495057; border-color: #495057; }
+        .due-filter-chip[data-due="vencido"].active { background: #dc3545; }
+        .due-filter-chip[data-due="proximo"].active { background: #fd7e14; color: #212529; }
+        .due-filter-chip[data-due="proximo"].active .chip-count { background: rgba(0,0,0,.12); }
+        .due-filter-chip[data-due="al_dia"].active { background: #198754; }
+        .due-filter-chip[data-due="inactivo"].active { background: #6c757d; }
+        .due-filter-dot {
+            width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+        }
+        .dot-vencido { background: #dc3545; }
+        .dot-proximo { background: #fd7e14; }
+        .dot-al_dia { background: #198754; }
+        .dot-inactivo { background: #adb5bd; }
+        #dueFilterSummary {
+            font-size: .78rem;
+            color: #6c757d;
+        }
+    </style>
+    <script>
+        if (!localStorage.getItem('token')) { window.location.href = '/'; }
+    </script>
+</head>
+<body>
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo-container">
+                <div class="logo-circle">
+                    <span class="logo-text">PS</span>
+                </div>
+            </div>
+            <h5 class="mt-3 text-white">ParkSystem</h5>
+        </div>
+        <nav class="sidebar-nav">
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a href="dashboard.html" class="nav-link">
+                        <i class="fas fa-tachometer-alt"></i>
+                        <span>Dashboard</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="vehiculos.html" class="nav-link">
+                        <i class="fas fa-car"></i>
+                        <span>Vehículos</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="ingreso-salida.html" class="nav-link">
+                        <i class="fas fa-right-left"></i>
+                        <span>Ingreso / Salida</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="lector-placas.html" class="nav-link">
+                        <i class="fas fa-camera"></i>
+                        <span>Lector de placas</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="mensualidades.html" class="nav-link active">
+                        <i class="fas fa-calendar-check"></i>
+                        <span>Mensualidades</span>
+                    </a>
+                </li>
+                <li class="nav-item admin-only">
+                    <a href="configuracion.html" class="nav-link">
+                        <i class="fas fa-gear"></i>
+                        <span>Configuración</span>
+                    </a>
+                </li>
+                <li class="nav-item admin-only">
+                    <a href="tipos-vehiculos.html" class="nav-link">
+                        <i class="fas fa-tags"></i>
+                        <span>Tipos de Vehículos</span>
+                    </a>
+                </li>
+                <li class="nav-item admin-only">
+                    <a href="tarifas.html" class="nav-link">
+                        <i class="fas fa-money-bill-wave"></i>
+                        <span>Tarifas</span>
+                    </a>
+                </li>
+                <li class="nav-item admin-only">
+                    <a href="usuarios.html" class="nav-link">
+                        <i class="fas fa-users"></i>
+                        <span>Usuarios</span>
+                    </a>
+                </li>
+                <li class="nav-item admin-only">
+                    <a href="reportes.html" class="nav-link">
+                        <i class="fas fa-chart-bar"></i>
+                        <span>Reportes</span>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+        <div class="sidebar-footer">
+            <a href="#" class="nav-link" id="btnLogout">
+                <i class="fas fa-sign-out-alt"></i>
+                <span>Cerrar Sesión</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
+            <div class="container-fluid">
+                <button class="btn btn-link sidebar-toggle">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <div class="navbar-collapse">
+                    <ul class="navbar-nav ms-auto">
+                        <li class="nav-item">
+                            <span class="nav-link">
+                                <i class="fas fa-user-circle me-2"></i>
+                                <span id="userName">Usuario</span>
+                            </span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </nav>
+
+        <div class="container-fluid py-4">
+            <div class="card mb-3">
+                <div class="card-header bg-white d-flex flex-wrap gap-2 align-items-center justify-content-between">
+                    <h5 class="mb-0"><i class="fas fa-calendar-check me-2"></i>Mensualidades</h5>
+                    <div class="d-flex flex-wrap gap-2">
+                        <div class="input-group" style="max-width:380px">
+                            <span class="input-group-text"><i class="fas fa-search"></i></span>
+                            <input id="q" type="text" class="form-control" placeholder="Buscar por placa, titular o documento">
+                        </div>
+                        <button id="btnBuscar" class="btn btn-primary"><i class="fas fa-filter me-1"></i>Filtrar</button>
+                        <button id="btnNueva" class="btn btn-success"><i class="fas fa-plus me-1"></i>Nueva</button>
+                    </div>
+                </div>
+
+                <!-- Pestañas: Activos / Desactivados -->
+                <div class="card-header bg-light py-0 border-top-0">
+                    <ul class="nav nav-tabs card-header-tabs" id="tabsMens" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="tab-activos" data-tab="activos" type="button" role="tab">
+                                <i class="fas fa-check-circle me-1 text-success"></i>Activos / Vencidos
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="tab-desactivados" data-tab="cancelada" type="button" role="tab">
+                                <i class="fas fa-ban me-1 text-secondary"></i>Desactivados
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Filtros rápidos por estado de pago -->
+                <div id="dueFiltersBar" class="due-filters-bar">
+                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                        <span class="due-filters-label"><i class="fas fa-filter me-1"></i>Filtrar por pago</span>
+                        <div class="d-flex align-items-center gap-2">
+                            <span id="dueFilterSummary"></span>
+                            <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" id="btnClearDueFilters" style="display:none">Limpiar filtros</button>
+                        </div>
+                    </div>
+                    <div class="d-flex flex-wrap gap-2" id="dueFilterChips">
+                        <button type="button" class="due-filter-chip active" data-due="">
+                            <i class="fas fa-list-ul"></i> Todos
+                            <span class="chip-count" id="count-all">0</span>
+                        </button>
+                        <button type="button" class="due-filter-chip" data-due="vencido">
+                            <span class="due-filter-dot dot-vencido"></span> Vencidos
+                            <span class="chip-count" id="count-vencido">0</span>
+                        </button>
+                        <button type="button" class="due-filter-chip" data-due="proximo">
+                            <span class="due-filter-dot dot-proximo"></span> Próximos a vencer
+                            <span class="chip-count" id="count-proximo">0</span>
+                        </button>
+                        <button type="button" class="due-filter-chip" data-due="al_dia">
+                            <span class="due-filter-dot dot-al_dia"></span> Al día
+                            <span class="chip-count" id="count-al_dia">0</span>
+                        </button>
+                        <button type="button" class="due-filter-chip" data-due="inactivo">
+                            <span class="due-filter-dot dot-inactivo"></span> Inactivos
+                            <span class="chip-count" id="count-inactivo">0</span>
+                        </button>
+                    </div>
+                    <div class="small text-muted mt-2"><i class="fas fa-info-circle me-1"></i>Puedes seleccionar uno o varios filtros a la vez.</div>
+                </div>
+
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Placa / Referencia</th>
+                                    <th>Titular</th>
+                                    <th>Servicio</th>
+                                    <th>Valor</th>
+                                    <th>Inicio</th>
+                                    <th>Fin</th>
+                                    <th>Estado</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbMens"></tbody>
+                        </table>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mt-2">
+                        <button class="btn btn-outline-secondary btn-sm" id="btnPrev">Anterior</button>
+                        <span class="small text-muted" id="pageInfo">Página 1</span>
+                        <button class="btn btn-outline-primary btn-sm" id="btnNext">Siguiente</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Crear/Editar Mensualidad -->
+    <div class="modal fade" id="mensModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="mensModalTitle">Nueva mensualidad</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="mensForm" class="row g-3">
+                        <input type="hidden" id="id_mensualidad">
+
+                        <!-- Tipo de servicio: primer campo, controla visibilidad del resto -->
+                        <div class="col-12 col-md-4">
+                            <label class="form-label fw-semibold">Tipo de servicio</label>
+                            <select id="tipo_servicio" class="form-select">
+                                <option value="mensualidad">🚗 Mensualidad (vehículo)</option>
+                                <option value="arriendo">🏠 Arriendo (local / casa)</option>
+                            </select>
+                        </div>
+
+                        <!-- Campos solo para Mensualidad (vehículo) -->
+                        <div id="rowVehiculo" class="col-12 row g-3 m-0 p-0">
+                            <div class="col-12 col-md-5">
+                                <label class="form-label">Placa</label>
+                                <input type="text" id="placa" class="form-control text-uppercase" placeholder="ABC123">
+                                <div class="form-text">Si no existe, se creará el vehículo automáticamente.</div>
+                            </div>
+                            <div class="col-12 col-md-5">
+                                <label class="form-label">Tipo de vehículo</label>
+                                <select id="id_tipo" class="form-select">
+                                    <option value="">(si ya existe el vehículo, deje en blanco)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Campo solo para Arriendo (local/casa) -->
+                        <div id="rowArriendo" class="col-12 col-md-8" style="display:none">
+                            <label class="form-label">Referencia del espacio</label>
+                            <input type="text" id="referencia_espacio" class="form-control" placeholder="Ej: Local 101, Casa 3, Bodega A">
+                            <div class="form-text">Identifica el local, casa o espacio arrendado.</div>
+                        </div>
+                        <div class="col-12 col-md-5">
+                            <label class="form-label">Titular</label>
+                            <input type="text" id="titular_nombre" class="form-control" required>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label">Documento</label>
+                            <input type="text" id="titular_documento" class="form-control">
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label">Teléfono</label>
+                            <input type="text" id="titular_telefono" class="form-control">
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label">Email</label>
+                            <input type="email" id="titular_email" class="form-control">
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label">Valor mensual</label>
+                            <input type="number" min="0" step="0.01" id="valor_mensual" class="form-control" required>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label">Fecha inicio</label>
+                            <input type="date" id="fecha_inicio" class="form-control" required>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label">Fecha fin</label>
+                            <input type="date" id="fecha_fin" class="form-control">
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="auto_renovar" checked>
+                                <label class="form-check-label" for="auto_renovar">Auto-renovar</label>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Observaciones</label>
+                            <textarea id="observaciones" class="form-control" rows="2"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" id="btnGuardar">Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Registrar Pago de Mensualidad -->
+    <div class="modal fade" id="pagoMensModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Registrar pago</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="pagoMensForm" class="row g-3">
+                        <input type="hidden" id="pago_id_mensualidad">
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Meses a pagar</label>
+                            <div class="input-group">
+                                <button class="btn btn-outline-secondary" type="button" id="btnMesMenos">-</button>
+                                <input type="number" id="months" class="form-control text-center" min="1" step="1" value="1">
+                                <button class="btn btn-outline-secondary" type="button" id="btnMesMas">+</button>
+                            </div>
+                            <div class="form-text">Ajusta la cantidad; el periodo se calcula automáticamente.</div>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Periodo</label>
+                            <input type="text" id="periodo_label" class="form-control" disabled>
+                            <div class="form-text">Desde - hasta (calculado).</div>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Método</label>
+                            <select id="metodo_pago" class="form-select">
+                                <option value="efectivo">Efectivo</option>
+                                <option value="tarjeta">Tarjeta</option>
+                                <option value="QR">QR</option>
+                                <option value="transferencia">Transferencia</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Monto</label>
+                            <input type="number" id="monto" class="form-control" min="0" step="0.01" required>
+                            <div class="form-text">Se precarga con valor_mensual × meses.</div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Referencia</label>
+                            <input type="text" id="referencia_pago" class="form-control">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-success" id="btnRegPago">Registrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Confirmar Eliminar / Desactivar -->
+    <div class="modal fade" id="confirmDeleteModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered" style="max-width:420px">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header border-0 pb-0">
+                    <div class="d-flex align-items-center gap-2">
+                        <div id="confirmDeleteIcon" class="rounded-circle d-flex align-items-center justify-content-center" style="width:42px;height:42px;min-width:42px">
+                            <i id="confirmDeleteIconI" class="fas fa-trash fs-5"></i>
+                        </div>
+                        <h5 class="modal-title mb-0" id="confirmDeleteTitle">Confirmar acción</h5>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body pt-3">
+                    <p class="mb-2 fw-semibold" id="confirmDeleteQuestion"></p>
+                    <div id="confirmDeleteBullets" class="rounded p-3 small" style="background:#f8f9fa;line-height:1.7"></div>
+                </div>
+                <div class="modal-footer border-0 pt-0">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn" id="btnConfirmDeleteOk">Confirmar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toasts -->
+    <div class="position-fixed top-0 end-0 p-3" style="z-index:1100">
+        <div id="toastContainer"></div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="../js/footer.js"></script>
+    <script src="../js/turnos.js"></script>
+    <script src="../js/mensualidades.js"></script>
+</body>
+</html>

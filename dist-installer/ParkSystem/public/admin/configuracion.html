@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ParkSystem - Configuración</title>
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="../css/dashboard.css" rel="stylesheet">
+    <script>
+        // Guard: requiere token y rol admin
+        if (!localStorage.getItem('token')) { window.location.href = '/'; }
+        if (localStorage.getItem('userRole') !== 'admin') { window.location.href = '/admin/dashboard'; }
+    </script>
+</head>
+<body>
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo-container"><div class="logo-circle"><span class="logo-text">PS</span></div></div>
+            <h5 class="mt-3 text-white">ParkSystem</h5>
+        </div>
+        <nav class="sidebar-nav">
+            <ul class="nav flex-column">
+                <li class="nav-item"><a href="dashboard.html" class="nav-link"><i class="fas fa-tachometer-alt"></i><span>Dashboard</span></a></li>
+                <li class="nav-item"><a href="vehiculos.html" class="nav-link"><i class="fas fa-car"></i><span>Vehículos</span></a></li>
+                <li class="nav-item"><a href="ingreso-salida.html" class="nav-link"><i class="fas fa-right-left"></i><span>Ingreso / Salida</span></a></li>
+                <li class="nav-item"><a href="lector-placas.html" class="nav-link"><i class="fas fa-camera"></i><span>Lector de placas</span></a></li>
+                <li class="nav-item"><a href="mensualidades.html" class="nav-link"><i class="fas fa-calendar-check"></i><span>Mensualidades</span></a></li>
+                <li class="nav-item admin-only"><a href="configuracion.html" class="nav-link active"><i class="fas fa-gear"></i><span>Configuración</span></a></li>
+                <li class="nav-item admin-only"><a href="tipos-vehiculos.html" class="nav-link"><i class="fas fa-tags"></i><span>Tipos de Vehículos</span></a></li>
+                <li class="nav-item admin-only"><a href="tarifas.html" class="nav-link"><i class="fas fa-money-bill-wave"></i><span>Tarifas</span></a></li>
+                <li class="nav-item admin-only"><a href="usuarios.html" class="nav-link"><i class="fas fa-users"></i><span>Usuarios</span></a></li>
+                <li class="nav-item admin-only"><a href="reportes.html" class="nav-link"><i class="fas fa-chart-bar"></i><span>Reportes</span></a></li>
+            </ul>
+        </nav>
+        <div class="sidebar-footer"><a href="#" class="nav-link" id="btnLogout"><i class="fas fa-sign-out-alt"></i><span>Cerrar Sesión</span></a></div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
+            <div class="container-fluid">
+                <button class="btn btn-link sidebar-toggle"><i class="fas fa-bars"></i></button>
+                <div class="navbar-collapse"><ul class="navbar-nav ms-auto"><li class="nav-item"><span class="nav-link"><i class="fas fa-user-circle me-2"></i><span id="userName">Usuario</span></span></li></ul></div>
+            </div>
+        </nav>
+
+        <div class="container-fluid py-4">
+            <div class="row g-4">
+                <!-- Datos de Empresa -->
+                <div class="col-12 col-xl-6">
+                    <div class="card">
+                        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0"><i class="fas fa-building me-2"></i>Datos de la Empresa</h5>
+                            <button class="btn btn-primary btn-sm" id="btnSaveEmpresa"><i class="fas fa-save me-1"></i>Guardar</button>
+                        </div>
+                        <div class="card-body">
+                            <form id="formEmpresa" class="row g-3">
+                                <div class="col-md-8">
+                                    <label class="form-label">Nombre</label>
+                                    <input type="text" id="e_nombre" class="form-control" required>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">NIT</label>
+                                    <input type="text" id="e_nit" class="form-control" required>
+                                </div>
+                                <div class="col-md-8">
+                                    <label class="form-label">Dirección</label>
+                                    <input type="text" id="e_direccion" class="form-control">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Teléfono</label>
+                                    <input type="text" id="e_telefono" class="form-control">
+                                </div>
+                                <div class="col-md-8">
+                                    <label class="form-label">Email</label>
+                                    <input type="email" id="e_email" class="form-control">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Logo</label>
+                                    <input type="file" id="e_logo_file" class="form-control" accept="image/*">
+                                    <div class="mt-2">
+                                        <img id="e_logo_preview" src="" alt="Vista previa" class="img-fluid rounded border d-none" style="max-height:80px">
+                                    </div>
+                                    <button type="button" id="btnUploadLogo" class="btn btn-outline-secondary btn-sm mt-2"><i class="fas fa-upload me-1"></i>Subir</button>
+                                </div>
+                                <div class="col-12">
+                                    <div id="alertEmpresa" class="alert d-none" role="alert"></div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Configuración -->
+                <div class="col-12 col-xl-6">
+                    <div class="card">
+                        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0"><i class="fas fa-sliders me-2"></i>Configuración</h5>
+                            <button class="btn btn-primary btn-sm" id="btnSaveConfig"><i class="fas fa-save me-1"></i>Guardar</button>
+                        </div>
+                        <div class="card-body">
+                            <form id="formConfig" class="row g-3">
+                                <!-- Nota: Las capacidades ahora se configuran desde Tipos de Vehículos -->
+                                <div class="col-12">
+                                    <div class="alert alert-info mb-3">
+                                        <i class="fas fa-info-circle me-2"></i>
+                                        <strong>Nota:</strong> Las capacidades de vehículos ahora se configuran desde el panel de <a href="tipos-vehiculos.html" class="alert-link">Tipos de Vehículos</a>.
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Apertura</label>
+                                    <input type="time" id="c_apertura" class="form-control" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Cierre</label>
+                                    <input type="time" id="c_cierre" class="form-control" required>
+                                </div>
+                                <div class="col-12">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="c_24h">
+                                        <label class="form-check-label" for="c_24h">Abierto 24 horas</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">IVA (%)</label>
+                                    <input type="number" step="0.01" min="0" id="c_iva" class="form-control" required>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Moneda</label>
+                                    <input type="text" id="c_moneda" class="form-control" value="COP" required>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Zona horaria</label>
+                                    <input type="text" id="c_tz" class="form-control" value="America/Bogota" required>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label fw-semibold"><i class="fas fa-file-alt me-1"></i>Reglamento / Condiciones del servicio</label>
+                                    <textarea id="c_reglamento" class="form-control" rows="5"
+                                        placeholder="Ej: No nos hacemos responsables por objetos dejados en el vehículo. El parqueadero no se responsabiliza por daños o hurtos..."></textarea>
+                                    <small class="text-muted">Este texto aparecerá al pie de cada ticket impreso.</small>
+                                </div>
+                                <div class="col-12">
+                                    <div id="alertConfig" class="alert d-none" role="alert"></div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Inteligencia Artificial / Gemini -->
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
+                            <h5 class="mb-0">
+                                <i class="fas fa-robot me-2"></i>Inteligencia Artificial (Lector de placas)
+                                <span id="ia_badge" class="badge bg-secondary ms-2">No configurado</span>
+                            </h5>
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" id="btnTestIa">
+                                    <i class="fas fa-plug me-1"></i>Probar conexión
+                                </button>
+                                <button type="button" class="btn btn-primary btn-sm" id="btnSaveIa">
+                                    <i class="fas fa-save me-1"></i>Guardar
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <form id="formIa" class="row g-3" autocomplete="off">
+                                <div class="col-12 col-lg-7">
+                                    <label class="form-label" for="ia_api_key">API Key de Gemini</label>
+                                    <div class="input-group">
+                                        <input type="password" id="ia_api_key" class="form-control" autocomplete="off"
+                                            placeholder="Pega aquí tu clave (AIza…)">
+                                        <button type="button" class="btn btn-outline-secondary" id="btnToggleIaKey" title="Mostrar / ocultar">
+                                            <i class="fas fa-eye" id="ia_key_icon"></i>
+                                        </button>
+                                    </div>
+                                    <small id="ia_key_preview" class="text-muted d-block mt-1"></small>
+                                </div>
+                                <div class="col-12 col-md-6 col-lg-5">
+                                    <label class="form-label" for="ia_modelo">Modelo</label>
+                                    <select id="ia_modelo" class="form-select">
+                                        <option value="gemini-3.1-flash-lite">Rápido (recomendado) — déjalo así</option>
+                                        <option value="gemini-3.6-flash">Más preciso (más lento y más caro)</option>
+                                        <option value="gemini-3.1-pro-preview">Máxima precisión (el más lento)</option>
+                                        <option value="gemini-2.5-flash-lite">Legado 2.5 rápido (solo si Probar conexión lo elige)</option>
+                                        <option value="gemini-2.5-flash">Legado 2.5 preciso (solo si Probar conexión lo elige)</option>
+                                        <option value="custom">Personalizado…</option>
+                                    </select>
+                                    <small class="text-muted d-block mt-1">
+                                        No hace falta elegir a mano: deja el <strong>recomendado</strong>, pega la clave y pulsa
+                                        <strong>Probar conexión</strong>. Si tu cuenta no admite ese modelo, el sistema prueba otros y te deja el que sí funciona.
+                                    </small>
+                                </div>
+                                <div class="col-12 col-md-6 col-lg-2 d-none" id="ia_modelo_custom_wrap">
+                                    <label class="form-label" for="ia_modelo_custom">Modelo personalizado</label>
+                                    <input type="text" id="ia_modelo_custom" class="form-control" maxlength="50" placeholder="nombre-del-modelo">
+                                </div>
+                                <div class="col-12">
+                                    <div class="accordion" id="accIaHelp">
+                                        <div class="accordion-item">
+                                            <h2 class="accordion-header">
+                                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseIaHelp">
+                                                    Cómo configurar el lector (API Key y modelo)
+                                                </button>
+                                            </h2>
+                                            <div id="collapseIaHelp" class="accordion-collapse collapse" data-bs-parent="#accIaHelp">
+                                                <div class="accordion-body">
+                                                    <p class="mb-2">Solo necesitas una <strong>API Key</strong>. El modelo ya viene elegido.</p>
+                                                    <ol class="mb-2">
+                                                        <li>Entra a <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a> e inicia sesión con Google.</li>
+                                                        <li>Clic en <strong>Create API key</strong> (crear clave de API).</li>
+                                                        <li>Copia la clave (empieza con <code>AIza…</code>) y pégala arriba.</li>
+                                                        <li>Deja el modelo en <strong>Rápido (recomendado)</strong>.</li>
+                                                        <li>Pulsa <strong>Probar conexión</strong> y luego <strong>Guardar</strong>.</li>
+                                                    </ol>
+                                                    <p class="small mb-2">
+                                                        Si la prueba dice que el modelo no está disponible, no lo cambies a mano:
+                                                        el botón ya busca uno compatible con tu clave. Cuando encuentre uno, pulsa <strong>Guardar</strong>.
+                                                    </p>
+                                                    <p class="small text-muted mb-0">
+                                                        El plan gratuito de Google tiene cupos bajos y el lector puede dejar de responder.
+                                                        Para un parqueadero en producción conviene activar facturación en
+                                                        <a href="https://aistudio.google.com/usage" target="_blank" rel="noopener">AI Studio → Uso y facturación</a>
+                                                        (la misma clave sigue sirviendo).
+                                                        La clave se guarda cifrada y nunca se muestra completa después de guardarla.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <div id="alertIa" class="alert d-none" role="alert"></div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="position-fixed top-0 end-0 p-3" style="z-index:1100"><div id="toastContainer"></div></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Footer global (reutilizable). Relacionado con public/js/footer.js -->
+    <script src="../js/footer.js"></script>
+    <script src="../js/configuracion.js"></script>
+</body>
+</html>
+
+

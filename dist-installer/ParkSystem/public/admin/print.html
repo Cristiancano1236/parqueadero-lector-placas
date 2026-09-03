@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Imprimir Ticket</title>
+    <style>
+        /* ── Pantalla ──────────────────────────────────────────── */
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            background: #f0f2f5;
+            font-family: Arial, sans-serif;
+            font-size: 11px;
+        }
+        #topbar {
+            background: #1a56db;
+            color: #fff;
+            text-align: center;
+            padding: 14px 16px;
+            font-size: 15px;
+        }
+        #topbar strong { display: block; font-size: 17px; margin-bottom: 4px; }
+        #actions {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            padding: 14px;
+            flex-wrap: wrap;
+        }
+        .btn {
+            padding: 12px 28px;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: bold;
+            cursor: pointer;
+            min-width: 160px;
+        }
+        .btn-primary { background: #1a56db; color: #fff; }
+        .btn-secondary { background: #6b7280; color: #fff; }
+        #ticket-wrap {
+            background: #fff;
+            max-width: 420px;
+            margin: 0 auto 24px;
+            padding: 8mm;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,.12);
+        }
+        #no-job {
+            text-align: center;
+            padding: 40px 20px;
+            color: #6b7280;
+            font-size: 14px;
+        }
+
+        /* ── Impresión ─────────────────────────────────────────── */
+        @media print {
+            #topbar, #actions { display: none !important; }
+            body { background: #fff; }
+            #ticket-wrap {
+                max-width: 100%;
+                margin: 0;
+                padding: 0;
+                border-radius: 0;
+                box-shadow: none;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div id="topbar" class="no-print">
+    <strong id="ticket-titulo">Ticket</strong>
+    Revisa el contenido y toca <em>Imprimir / Guardar PDF</em>
+</div>
+
+<div id="actions" class="no-print">
+    <button class="btn btn-primary" onclick="window.print()">
+        &#128438; Imprimir / Guardar PDF
+    </button>
+    <button class="btn btn-secondary" onclick="window.close()">
+        &#10005; Cerrar
+    </button>
+</div>
+
+<div id="ticket-wrap">
+    <div id="no-job">Cargando ticket&hellip;</div>
+</div>
+
+<!-- QR y código de barras (mismos CDN que el sistema) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+
+<script>
+(function () {
+    var params = new URLSearchParams(window.location.search);
+    var key = params.get('key');
+    var job = null;
+
+    if (key) {
+        try { job = JSON.parse(localStorage.getItem(key)); } catch (e) {}
+        try { localStorage.removeItem(key); } catch (e) {}
+    }
+
+    var wrap = document.getElementById('ticket-wrap');
+    var noJob = document.getElementById('no-job');
+
+    if (!job) {
+        noJob.textContent = 'No se encontró el ticket. Por favor intenta de nuevo.';
+        return;
+    }
+
+    /* ── Título ──────────────────────────────────────────────── */
+    document.title = job.titulo || 'Ticket';
+    var titElem = document.getElementById('ticket-titulo');
+    if (titElem) titElem.textContent = job.titulo || 'Ticket';
+
+    /* ── CSS de ancho de papel ───────────────────────────────── */
+    var width = job.width || 80;
+    var style = document.createElement('style');
+    style.textContent =
+        '@page { size: ' + width + 'mm auto; margin: 3mm }' +
+        '#ticket-wrap { width: ' + width + 'mm; }' +
+        'hr { border: none; border-top: 1px dashed #999; margin: 6px 0 }' +
+        'img { display: block; margin: 0 auto 6px; max-width: 100% }' +
+        '.qr { display: none; justify-content: center; margin-top: 6px }' +
+        '.barcode { display: flex; justify-content: center; margin-top: 6px }';
+    document.head.appendChild(style);
+
+    /* ── Contenido del ticket ────────────────────────────────── */
+    wrap.innerHTML = job.html +
+        '<div class="qr"><div id="qrcode"></div></div>';
+
+    /* ── QR ──────────────────────────────────────────────────── */
+    try {
+        var qp = job.qrPayload;
+        var enableQR = !!(qp && (qp.qr === true || qp.enableQR === true));
+        if (enableQR) {
+            var qrEl = document.getElementById('qrcode');
+            if (qrEl) {
+                new QRCode(qrEl, { text: 'https://ciscodedev.netlify.app/', width: 96, height: 96 });
+                if (qrEl.parentElement) qrEl.parentElement.style.display = 'flex';
+            }
+        }
+    } catch (e) {}
+
+    /* ── Código de barras (placa) ────────────────────────────── */
+    try {
+        var svg = document.getElementById('barcodeSvg');
+        if (svg && job.qrPayload) {
+            var placa = (job.qrPayload.p || job.qrPayload.placa) || '';
+            if (placa) {
+                JsBarcode(svg, placa, { format: 'code128', displayValue: false, height: 40 });
+            }
+        }
+    } catch (e) {}
+
+    /* ── Auto-imprimir después de que carguen fuentes/imágenes ── */
+    setTimeout(function () {
+        window.print();
+    }, 900);
+})();
+</script>
+
+</body>
+</html>
