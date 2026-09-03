@@ -81,7 +81,14 @@ CREATE TABLE configuracion_empresa (
     reglamento TEXT DEFAULT NULL,
     gemini_api_key TEXT DEFAULT NULL,
     gemini_modelo VARCHAR(50) NOT NULL DEFAULT 'gemini-3.1-flash-lite',
-    FOREIGN KEY (id_empresa) REFERENCES empresas(id_empresa)
+    -- Integración cámara ANPR (ingreso automático por placa detectada en cámara externa)
+    anpr_activo BOOLEAN NOT NULL DEFAULT FALSE,
+    anpr_token TEXT DEFAULT NULL,
+    anpr_camera_ip VARCHAR(45) DEFAULT NULL,
+    anpr_cooldown_seg INT NOT NULL DEFAULT 10,
+    anpr_user_id INT DEFAULT NULL,
+    FOREIGN KEY (id_empresa) REFERENCES empresas(id_empresa),
+    FOREIGN KEY (anpr_user_id) REFERENCES usuarios(id_usuario)
 ) ENGINE=InnoDB;
 
 -- Tabla de Capacidades por Tipo de Vehículo (reemplaza campos hardcodeados)

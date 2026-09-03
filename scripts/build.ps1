@@ -109,24 +109,24 @@ ParkSystem - Distribucion Windows
 Requisitos:
 - Windows 64 bits
 - MariaDB / MySQL (ejecuta schema.sql)
-- Internet (Gemini AI para el lector de placas)
+- Camara ANPR Dahua en la misma red local (ingreso automatico por placa)
 - NO hace falta instalar Node.js ni programas extras
 
 Instalacion (recomendado):
 1. Copia esta carpeta al PC destino (o descomprime el ZIP).
 2. Clic derecho en INSTALAR.bat -> Ejecutar como administrador.
 3. Edita .env en Program Files\ParkSystem si hace falta (DB_PASSWORD).
-4. Abre ParkSystem desde el escritorio.
-5. En el movil: http://IP-DEL-PC:3080/ (Conectar celular) e instala la CA.
-6. Configura la API Key de Gemini en Configuracion.
+4. Abre ParkSystem desde el escritorio: carga directo el login normal.
+5. Inicia sesion como admin y ve a Configuracion -> Camara ANPR para
+   generar el token, copiar la URL del webhook y pegarla en la camara.
 
 Uso portable (sin instalar):
 1. Ejecuta Preparar-HTTPS.bat como administrador.
 2. Doble clic en parqueadero.exe
 
-Si cambia la IP WiFi del PC:
+Si cambia la IP LAN del PC:
 - Ejecuta Preparar-HTTPS.bat
-- No hace falta reinstalar la CA en el movil
+- Vuelve a copiar la URL del webhook (cambia la IP) y actualizala en la camara
 
 No borres: parqueadero.exe, public/, tools/, scripts/, INSTALAR.bat
 "@

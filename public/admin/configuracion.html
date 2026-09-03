@@ -151,6 +151,122 @@
                     </div>
                 </div>
 
+                <!-- Cámara ANPR (Dahua) - ingreso automático -->
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
+                            <h5 class="mb-0">
+                                <i class="fas fa-video me-2"></i>Cámara ANPR (ingreso automático)
+                                <span id="anpr_badge" class="badge bg-secondary ms-2">Desactivado</span>
+                            </h5>
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" id="btnRefreshAnpr">
+                                    <i class="fas fa-rotate me-1"></i>Actualizar
+                                </button>
+                                <button type="button" class="btn btn-primary btn-sm" id="btnSaveAnpr">
+                                    <i class="fas fa-save me-1"></i>Guardar
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="alert alert-info">
+                                <i class="fas fa-circle-info me-2"></i>
+                                <strong>La lectura de placas la realiza la cámara ANPR Dahua.</strong>
+                                ParkSystem solo recibe el evento de la cámara y registra el ingreso; no usa
+                                inteligencia artificial ni OCR propios en este modo.
+                            </div>
+                            <form id="formAnpr" class="row g-3" autocomplete="off">
+                                <div class="col-12">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="anpr_activo">
+                                        <label class="form-check-label" for="anpr_activo">Activar ingreso automático por cámara ANPR</label>
+                                    </div>
+                                </div>
+
+                                <div class="col-12 col-lg-8">
+                                    <label class="form-label">URL del webhook (pégala en la configuración ITSAPI/HTTP de la cámara)</label>
+                                    <div class="input-group">
+                                        <input type="text" id="anpr_webhook_url" class="form-control" readonly placeholder="Genera el token para obtener la URL">
+                                        <button type="button" class="btn btn-outline-secondary" id="btnCopyWebhook" title="Copiar">
+                                            <i class="fas fa-copy"></i>
+                                        </button>
+                                    </div>
+                                    <small class="text-muted d-block mt-1" id="anpr_ip_hint"></small>
+                                </div>
+                                <div class="col-12 col-lg-4">
+                                    <label class="form-label">Token de seguridad</label>
+                                    <div class="input-group">
+                                        <input type="text" id="anpr_token_preview" class="form-control" readonly placeholder="Sin generar">
+                                        <button type="button" class="btn btn-outline-secondary" id="btnRegenerarToken" title="Generar / rotar token">
+                                            <i class="fas fa-key"></i>
+                                        </button>
+                                    </div>
+                                    <small class="text-muted d-block mt-1">Rotarlo invalida la URL usada por la cámara.</small>
+                                </div>
+
+                                <div class="col-md-4">
+                                    <label class="form-label" for="anpr_camera_ip">IP de la cámara (opcional)</label>
+                                    <input type="text" id="anpr_camera_ip" class="form-control" placeholder="Ej: 192.168.1.60">
+                                    <small class="text-muted d-block mt-1">Si se define, solo se aceptan eventos desde esta IP.</small>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label" for="anpr_cooldown">Cooldown anti-duplicado (segundos)</label>
+                                    <input type="number" id="anpr_cooldown" class="form-control" min="1" max="300" value="10">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label" for="anpr_usuario">Usuario de registro</label>
+                                    <select id="anpr_usuario" class="form-select">
+                                        <option value="">Selecciona un usuario…</option>
+                                    </select>
+                                    <small class="text-muted d-block mt-1">Aparecerá como quien registró el ingreso.</small>
+                                </div>
+
+                                <div class="col-12">
+                                    <div class="card bg-light border-0">
+                                        <div class="card-body py-2">
+                                            <strong><i class="fas fa-clock-rotate-left me-1"></i>Último evento recibido:</strong>
+                                            <span id="anpr_ultimo_evento">Aún no se ha recibido ningún evento.</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-12">
+                                    <div class="accordion" id="accAnprHelp">
+                                        <div class="accordion-item">
+                                            <h2 class="accordion-header">
+                                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseAnprHelp">
+                                                    Cómo conectar la cámara Dahua
+                                                </button>
+                                            </h2>
+                                            <div id="collapseAnprHelp" class="accordion-collapse collapse" data-bs-parent="#accAnprHelp">
+                                                <div class="accordion-body">
+                                                    <ol class="mb-2">
+                                                        <li>Selecciona el <strong>usuario de registro</strong> y pulsa <strong>Guardar</strong>.</li>
+                                                        <li>Pulsa el ícono de llave para <strong>generar el token</strong> de seguridad.</li>
+                                                        <li>Copia la <strong>URL del webhook</strong> generada arriba.</li>
+                                                        <li>Entra al website de la cámara por su IP, ve a la sección ITSAPI / Platform / notificación HTTP y pega esa URL.</li>
+                                                        <li>Activa el switch <strong>"Activar ingreso automático"</strong> y guarda.</li>
+                                                        <li>Pasa un vehículo frente a la cámara y verifica el <strong>último evento</strong> aquí.</li>
+                                                    </ol>
+                                                    <p class="small text-muted mb-0">
+                                                        Cámara y servidor deben estar en la misma red local. El tipo de vehículo
+                                                        (carro/moto) se determina automáticamente por el formato de la placa
+                                                        colombiana detectada por la cámara.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-12">
+                                    <div id="alertAnpr" class="alert d-none" role="alert"></div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Inteligencia Artificial / Gemini -->
                 <div class="col-12">
                     <div class="card">

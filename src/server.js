@@ -13,6 +13,9 @@ const app = express();
 
 // Middleware
 app.use(cors());
+// Límite de body más alto solo para el webhook de la cámara ANPR (puede incluir snapshots en base64).
+// body-parser omite el reparseo si el body ya fue leído, así que esto no afecta al resto de rutas.
+app.use('/api/anpr/dahua', express.json({ limit: '15mb' }));
 app.use(express.json());
 app.use(express.static(publicDir));
 
@@ -31,6 +34,8 @@ app.use('/api/turnos', require('./routes/turnos'));
 app.use('/api/mensualidades', require('./routes/mensualidades'));
 app.use('/api/lector', require('./routes/lector'));
 app.use('/api/ia', require('./routes/iaConfig'));
+app.use('/api/anpr', require('./routes/anpr'));
+app.use('/api/anpr', require('./routes/anprConfig'));
 
 // Rutas de vistas
 app.get('/', (req, res) => {
@@ -123,20 +128,12 @@ app.get('/admin/tipos-vehiculos.html', (req, res) => {
     res.sendFile(path.join(publicDir, 'admin/tipos-vehiculos.html'));
 });
 
-app.get('/setup-movil', (req, res) => {
-    res.sendFile(path.join(publicDir, 'setup-movil.html'));
-});
-app.get('/setup-movil.html', (req, res) => {
-    res.sendFile(path.join(publicDir, 'setup-movil.html'));
-});
-
 // Manejo de rutas no encontradas
 app.use((req, res) => {
     res.status(404).sendFile(path.join(publicDir, '404.html'));
 });
 
 const PORT = process.env.PORT || 3000;
-const PORT_SETUP = process.env.PORT_SETUP || 3080;
 const certPath = path.join(certsDir, 'dev-cert.pem');
 const keyPath = path.join(certsDir, 'dev-key.pem');
 const httpsFlag = String(process.env.HTTPS || '').trim().toLowerCase();
@@ -144,34 +141,17 @@ const forceHttps = httpsFlag === 'true' || httpsFlag === '1';
 const forceHttp = httpsFlag === 'false' || httpsFlag === '0';
 const hasCerts = fs.existsSync(certPath) && fs.existsSync(keyPath);
 
-function obtenerIpsLocales() {
-    const interfaces = os.networkInterfaces();
-    const ips = [];
-    for (const infos of Object.values(interfaces)) {
-        if (!infos) continue;
-        for (const info of infos) {
-            if ((info.family === 'IPv4' || info.family === 4) && !info.internal) {
-                ips.push(info.address);
-            }
-        }
-    }
-    return ips;
-}
+const { obtenerIpsLocales } = require('./utils/network');
 
 function runAfterListen() {
     require('./config/migrate').runStartupMigrations()
         .then(() => console.log('Migraciones de esquema: OK'))
         .catch((err) => console.warn('Migraciones de esquema:', err.message));
 
-    try {
-        require('./services/setupHttpServer').startSetupServer({
-            port: PORT_SETUP,
-            appPort: PORT,
-            useHttps
-        });
-    } catch (err) {
-        console.warn('Servidor de guía móvil:', err.message);
-    }
+    // Nota: el servidor auxiliar de "Conectar celular" (guía + CA para usar el
+    // celular como cámara del lector con Gemini) está desactivado en esta
+    // instalación: el ingreso es automático por cámara ANPR, no se usa cámara
+    // de navegador/celular. El sistema abre siempre directo en el login normal.
 }
 
 function imprimirUrls(protocol) {
@@ -182,11 +162,10 @@ function imprimirUrls(protocol) {
         console.log('Red:     (no se detectó IP de red local)');
     } else {
         ips.forEach((ip) => {
-            console.log(`Móvil:   ${protocol}://${ip}:${PORT}`);
+            console.log(`Red:     ${protocol}://${ip}:${PORT}`);
         });
     }
     console.log(`Raíz:    ${projectRoot}`);
-    console.log(`Conectar celular: http://localhost:${PORT_SETUP}/`);
 }
 
 if (forceHttps && !hasCerts) {

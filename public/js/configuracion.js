@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
     cargarEmpresa();
     cargarConfig();
     cargarIaConfig();
+    cargarAnprConfig();
 
     // Guardar
     document.getElementById('btnSaveEmpresa').addEventListener('click', guardarEmpresa);
@@ -26,6 +27,16 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('formIa')?.addEventListener('submit', (e) => {
         e.preventDefault();
         guardarIaConfig();
+    });
+
+    // ANPR (cámara Dahua)
+    document.getElementById('btnSaveAnpr')?.addEventListener('click', guardarAnprConfig);
+    document.getElementById('btnRefreshAnpr')?.addEventListener('click', cargarAnprConfig);
+    document.getElementById('btnRegenerarToken')?.addEventListener('click', regenerarAnprToken);
+    document.getElementById('btnCopyWebhook')?.addEventListener('click', copiarWebhookAnpr);
+    document.getElementById('formAnpr')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        guardarAnprConfig();
     });
 
     // Logo: vista previa y subida
@@ -320,6 +331,166 @@ async function probarIaConfig() {
         btn.disabled = false;
         btn.innerHTML = prev;
     }
+}
+
+// ============================
+// ANPR (cámara Dahua) - solo ingreso automático
+// Relacionado con: src/routes/anpr.js (webhook) y src/routes/anprConfig.js (esta config)
+// ============================
+
+const RESULTADO_ANPR_LABELS = {
+    ingreso: { texto: 'Ingreso registrado', clase: 'text-success' },
+    duplicado: { texto: 'Duplicado ignorado (cooldown)', clase: 'text-warning' },
+    ya_dentro: { texto: 'Vehículo ya estaba dentro', clase: 'text-warning' },
+    invalida: { texto: 'Placa inválida', clase: 'text-danger' },
+    error: { texto: 'Error', clase: 'text-danger' }
+};
+
+function setAnprBadge(activo) {
+    const badge = document.getElementById('anpr_badge');
+    if (!badge) return;
+    if (activo) {
+        badge.className = 'badge bg-success ms-2';
+        badge.textContent = 'Activo';
+    } else {
+        badge.className = 'badge bg-secondary ms-2';
+        badge.textContent = 'Desactivado';
+    }
+}
+
+function renderUltimoEventoAnpr(evento) {
+    const el = document.getElementById('anpr_ultimo_evento');
+    if (!el) return;
+    if (!evento) {
+        el.textContent = 'Aún no se ha recibido ningún evento.';
+        el.className = '';
+        return;
+    }
+    const info = RESULTADO_ANPR_LABELS[evento.resultado] || { texto: evento.resultado, clase: '' };
+    const fecha = evento.fecha ? new Date(evento.fecha).toLocaleString('es-CO') : '';
+    el.className = info.clase;
+    el.textContent = `${evento.placa || '(sin placa)'} — ${info.texto} (${evento.mensaje || ''}) — ${fecha}`;
+}
+
+async function cargarAnprConfig() {
+    try {
+        const r = await fetch('/api/anpr/config', {
+            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.message || 'Error cargando configuración ANPR');
+        const d = j.data || {};
+
+        setAnprBadge(!!d.activo);
+        document.getElementById('anpr_activo').checked = !!d.activo;
+        document.getElementById('anpr_camera_ip').value = d.camera_ip || '';
+        document.getElementById('anpr_cooldown').value = d.cooldown_seg || 10;
+
+        const select = document.getElementById('anpr_usuario');
+        if (select) {
+            select.innerHTML = '<option value="">Selecciona un usuario…</option>';
+            (d.usuarios_disponibles || []).forEach((u) => {
+                const opt = document.createElement('option');
+                opt.value = u.id_usuario;
+                opt.textContent = u.nombre;
+                if (d.usuario_id && Number(d.usuario_id) === Number(u.id_usuario)) opt.selected = true;
+                select.appendChild(opt);
+            });
+        }
+
+        const tokenInput = document.getElementById('anpr_token_preview');
+        if (tokenInput) tokenInput.value = d.token_preview || '';
+
+        const webhookInput = document.getElementById('anpr_webhook_url');
+        if (webhookInput) webhookInput.value = d.webhook_url || '';
+
+        const hint = document.getElementById('anpr_ip_hint');
+        if (hint) {
+            if (!d.webhook_url) {
+                hint.textContent = 'Genera el token de seguridad (ícono de llave) para obtener la URL.';
+            } else if ((d.ips_disponibles || []).length > 1) {
+                hint.textContent = `Se detectaron varias redes: ${d.ips_disponibles.join(', ')}. Usa la IP correcta a la que la cámara pueda llegar.`;
+            } else {
+                hint.textContent = 'Esta URL usa la IP local del servidor en esta red (LAN), no un dominio en internet.';
+            }
+        }
+
+        renderUltimoEventoAnpr(d.ultimo_evento);
+    } catch (err) {
+        setAlert('alertAnpr', 'danger', err.message);
+    }
+}
+
+async function guardarAnprConfig() {
+    const payload = {
+        activo: document.getElementById('anpr_activo').checked,
+        camera_ip: document.getElementById('anpr_camera_ip').value.trim(),
+        cooldown_seg: Number(document.getElementById('anpr_cooldown').value || 10)
+    };
+    const usuarioId = document.getElementById('anpr_usuario').value;
+    if (usuarioId) payload.usuario_id = Number(usuarioId);
+
+    const btn = document.getElementById('btnSaveAnpr');
+    const prev = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = spinner('Guardando...');
+    try {
+        const r = await fetch('/api/anpr/config', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify(payload)
+        });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.message || 'Error al guardar');
+        await cargarAnprConfig();
+        setAlert('alertAnpr', 'success', j.message || 'Configuración ANPR guardada.');
+    } catch (err) {
+        setAlert('alertAnpr', 'danger', err.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = prev;
+    }
+}
+
+async function regenerarAnprToken() {
+    if (!confirm('Esto invalida la URL/token que la cámara esté usando actualmente. ¿Continuar?')) return;
+    const btn = document.getElementById('btnRegenerarToken');
+    const prev = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    try {
+        const r = await fetch('/api/anpr/config', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify({ regenerar_token: true })
+        });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.message || 'Error al generar el token');
+        await cargarAnprConfig();
+        setAlert('alertAnpr', 'success', 'Token generado. Copia la nueva URL y pégala en la cámara.');
+    } catch (err) {
+        setAlert('alertAnpr', 'danger', err.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = prev;
+    }
+}
+
+function copiarWebhookAnpr() {
+    const input = document.getElementById('anpr_webhook_url');
+    if (!input || !input.value) {
+        setAlert('alertAnpr', 'warning', 'Primero genera el token de seguridad.');
+        return;
+    }
+    navigator.clipboard.writeText(input.value)
+        .then(() => setAlert('alertAnpr', 'success', 'URL copiada al portapapeles.'))
+        .catch(() => { input.select(); document.execCommand('copy'); setAlert('alertAnpr', 'success', 'URL copiada.'); });
 }
 
 // Subir logo y colocar URL pública en el campo de texto (no guarda aún en BD)

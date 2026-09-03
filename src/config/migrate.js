@@ -50,11 +50,33 @@ async function ensureGeminiColumns() {
     }
 }
 
+async function ensureAnprColumns() {
+    const columnas = [
+        ["ALTER TABLE configuracion_empresa ADD COLUMN anpr_activo BOOLEAN NOT NULL DEFAULT FALSE", 'anpr_activo'],
+        ["ALTER TABLE configuracion_empresa ADD COLUMN anpr_token TEXT NULL", 'anpr_token'],
+        ["ALTER TABLE configuracion_empresa ADD COLUMN anpr_camera_ip VARCHAR(45) NULL", 'anpr_camera_ip'],
+        ["ALTER TABLE configuracion_empresa ADD COLUMN anpr_cooldown_seg INT NOT NULL DEFAULT 10", 'anpr_cooldown_seg'],
+        ["ALTER TABLE configuracion_empresa ADD COLUMN anpr_user_id INT NULL", 'anpr_user_id']
+    ];
+    for (const [sql, nombre] of columnas) {
+        try {
+            await pool.query(sql);
+            console.log(`Migración: columna ${nombre} agregada`);
+        } catch (err) {
+            if (err && err.code !== 'ER_DUP_FIELDNAME') {
+                console.warn(`Migración ${nombre}:`, err.message);
+            }
+        }
+    }
+}
+
 async function runStartupMigrations() {
     await ensureGeminiColumns();
+    await ensureAnprColumns();
 }
 
 module.exports = {
     runStartupMigrations,
-    ensureGeminiColumns
+    ensureGeminiColumns,
+    ensureAnprColumns
 };
